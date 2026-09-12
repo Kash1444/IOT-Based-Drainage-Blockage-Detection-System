@@ -10,7 +10,7 @@
 
 #define BLYNK_TEMPLATE_ID "TMPL3zJG9PmKu"
 #define BLYNK_TEMPLATE_NAME "IoT based Drainage Block Detection"
-#define BLYNK_AUTH_TOKEN "a9VC5Mt3RT-c3hAm1TBjnEGXPD4t3Dkm"
+#define BLYNK_AUTH_TOKEN "naveenasaraswathinivethathomas"
 
 #include <WiFi.h>
 #include <BlynkSimpleEsp32.h>
@@ -18,7 +18,7 @@
 // -------------------- WIFI --------------------
 
 char ssid[] = "Airtel_Los Pollos Hermanos";
-char pass[] = "Kash@144";
+char pass[] = "venugopalfromtidelpark";
 
 // Blynk timer
 BlynkTimer timer;
