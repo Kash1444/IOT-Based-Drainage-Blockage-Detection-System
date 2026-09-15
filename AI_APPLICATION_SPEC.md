@@ -1,60 +1,169 @@
 # AI APPLICATION SPECIFICATION
 
-## IoT-Based Drainage Blockage Detection — AI Monitoring Platform
+# DrainGuard AI
 
-> This document is the primary specification for building the AI-powered web application for this project.
-> Read this file completely before modifying or creating code.
-> Treat the existing IoT/ESP32/Blynk implementation as a working system that must not be unnecessarily modified or broken.
+## Trustworthy AI-Powered IoT Drainage Intelligence Platform
+
+> **IMPORTANT:** This document is the primary specification for the AI application.
+>
+> Read this entire document before modifying or creating code.
+>
+> The existing ESP32 + Blynk + physical drainage prototype is already working and tested. Do NOT unnecessarily rewrite, replace, or break the existing IoT system.
+>
+> The objective is NOT to build another generic "IoT dashboard + AI blockage prediction" project.
+>
+> The objective is to build a **trustworthy, explainable, fault-aware drainage intelligence platform** that combines real-time sensing, machine learning, sensor-health analysis, uncertainty-aware decisions, predictive analytics, maintenance prioritization, and a prototype-scale digital twin.
 
 ---
 
-# 1. PROJECT OVERVIEW
+# 1. PROJECT IDENTITY
 
 ## Project Name
 
-**IoT-Based Drainage Blockage Detection**
+**DrainGuard AI**
 
-## Core Idea
+## Full Name
 
-This project is an IoT-based smart drainage monitoring system designed to detect drainage blockages and abnormal water-level conditions in real time.
+**Trustworthy AI-Powered IoT Drainage Intelligence Platform**
 
-The physical prototype represents a road drainage system commonly affected by blockage and water accumulation during heavy rainfall.
+## One-Line Definition
 
-The system uses:
-
-* ESP32
-* Two flow sensors
-* Waterproof ultrasonic water-level sensor
-* Relay-controlled pump
-* Buzzer
-* Four status LEDs
-* Blynk IoT dashboard
-
-The current embedded system already performs deterministic blockage detection and water-level protection.
-
-The next major component is an **AI-powered monitoring and prediction web application**.
-
-The goal is to transform raw IoT sensor information into an intelligent dashboard capable of:
-
-* Monitoring current drainage conditions
-* Detecting abnormal patterns
-* Estimating blockage risk
-* Predicting developing blockage conditions
-* Visualizing historical sensor data
-* Explaining why the AI made a prediction
-* Providing actionable warnings
-* Showing system health
-* Presenting the project in a professional smart-city style
+> DrainGuard AI is a low-cost intelligent drainage monitoring platform that combines multi-sensor IoT data, machine learning, sensor-fault awareness, explainable predictions, drainage health scoring, and digital-twin-based decision support to detect and predict drainage problems before they become critical.
 
 ---
 
-# 2. IMPORTANT: CURRENT SYSTEM IS ALREADY WORKING
+# 2. THE REAL PROBLEM
 
-The following components are already implemented and tested.
+Urban drainage systems can experience:
 
-DO NOT unnecessarily rewrite them.
+* Plastic accumulation
+* Leaves
+* Mud
+* Sediment
+* Solid waste
+* Partial pipe obstruction
+* Severe blockage
+* Rapid water accumulation
+* Sensor failures
+* Noisy measurements
+* Communication failures
 
-### Hardware
+A simple threshold system can detect abnormal flow.
+
+A simple AI model can predict blockage.
+
+However, real drainage environments introduce an important complication:
+
+> **An abnormal sensor reading does not necessarily mean a physical blockage.**
+
+For example:
+
+```text
+Flow Sensor 1 = HIGH
+Flow Sensor 2 = LOW
+Water Level = NORMAL
+```
+
+Possible explanations include:
+
+```text
+1. Actual blockage
+2. Flow Sensor 2 malfunction
+3. Temporary turbulence
+4. Sensor noise
+5. Communication/data error
+```
+
+Another example:
+
+```text
+Rainfall / inflow increases
+Flow increases
+Water level increases
+Flow difference remains normal
+```
+
+This may represent heavy inflow rather than blockage.
+
+Therefore, DrainGuard AI must reason across multiple signals instead of blindly converting a single threshold into an alarm.
+
+---
+
+# 3. RESEARCH-DRIVEN DIFFERENTIATION
+
+The project must NOT claim:
+
+> "Nobody has used AI for drainage blockage detection."
+
+That would be inaccurate.
+
+Existing commercial and research systems already use:
+
+* Machine learning
+* Sewer-level monitoring
+* Rainfall information
+* Anomaly detection
+* Predictive blockage alerts
+* Explainable ML
+* Digital twins
+* Sensor networks
+* Predictive maintenance
+
+The project's differentiation should instead be:
+
+> **A low-cost, physically validated prototype that integrates multi-sensor blockage reasoning, sensor-fault awareness, uncertainty/confidence estimation, explainable AI, drainage health assessment, maintenance prioritization, and a prototype-scale digital twin in one system.**
+
+The application should therefore be designed around these capabilities.
+
+---
+
+# 4. CORE DESIGN PHILOSOPHY
+
+DrainGuard AI should answer five questions:
+
+### Question 1
+
+**What is happening right now?**
+
+### Question 2
+
+**Is this actually a blockage or could the sensors/environment explain it?**
+
+### Question 3
+
+**How confident is the system?**
+
+### Question 4
+
+**What is likely to happen next?**
+
+### Question 5
+
+**What should a maintenance operator do?**
+
+The dashboard should therefore progress from:
+
+```text
+OBSERVE
+   ↓
+DIAGNOSE
+   ↓
+PREDICT
+   ↓
+EXPLAIN
+   ↓
+PRIORITIZE
+   ↓
+ACT
+```
+
+---
+
+# 5. EXISTING SYSTEM — DO NOT BREAK
+
+The physical IoT system is already operational.
+
+Current components:
 
 * ESP32 DevKit V1
 * AJ-SR04M waterproof ultrasonic sensor
@@ -67,8 +176,13 @@ DO NOT unnecessarily rewrite them.
 * Green LED
 * Yellow LED
 * Red LED
+* Blynk IoT dashboard
 
-### ESP32 Pin Configuration
+The AI application must be built around this system.
+
+---
+
+# 6. EXISTING HARDWARE PIN CONFIGURATION
 
 | Component       |    GPIO |
 | --------------- | ------: |
@@ -83,28 +197,28 @@ DO NOT unnecessarily rewrite them.
 | Buzzer          | GPIO 22 |
 | Relay           | GPIO 23 |
 
-The ultrasonic echo uses an appropriate voltage-divider arrangement.
+Do not change these assignments unless absolutely necessary.
 
 ---
 
-# 3. CURRENT BLOCKAGE DETECTION LOGIC
+# 7. EXISTING BLOCKAGE DETECTION
 
-The ESP32 currently compares the upstream and downstream flow sensors.
+Current variables:
 
-### Variables
+```text
+Flow 1 = upstream flow
+Flow 2 = downstream flow
+Flow Difference = Flow 1 - Flow 2
+```
 
-* Flow 1 = upstream flow
-* Flow 2 = downstream flow
-* Flow Difference = Flow 1 - Flow 2
-
-Current blockage parameters:
+Current parameters:
 
 ```text
 BLOCKAGE_DIFFERENCE = 15
 BLOCKAGE_CONFIRM_TIME = 3 seconds
 ```
 
-The system requires:
+Current deterministic rule:
 
 ```text
 Flow 1 >= 20
@@ -126,44 +240,114 @@ Otherwise:
 blockageDetected = false
 ```
 
-This existing deterministic logic should remain the primary embedded safety mechanism.
-
-The AI system should be an **additional intelligence layer**, not a replacement for the existing safety logic.
+This rule-based system is already part of the embedded safety mechanism.
 
 ---
 
-# 4. CURRENT WATER-LEVEL SYSTEM
+# 8. RULE ENGINE VS AI ENGINE
 
-Water level is calculated using the AJ-SR04M ultrasonic sensor.
+This distinction must be clearly represented in the application.
 
-Current calibration:
+## Existing Rule Engine
+
+```text
+Flow difference threshold
++
+3-second confirmation
+```
+
+Purpose:
+
+**Immediate deterministic embedded detection**
+
+---
+
+## AI Engine
+
+```text
+Multiple sensor signals
++
+Temporal behaviour
++
+Historical patterns
++
+Sensor health
++
+Environmental context
++
+Machine learning
+```
+
+Purpose:
+
+**Prediction, diagnosis and decision support**
+
+---
+
+# 9. CRITICAL SAFETY PRINCIPLE
+
+AI must NOT replace the existing embedded safety system.
+
+Architecture:
+
+```text
+                    ESP32
+                      │
+             ┌────────┴────────┐
+             │                 │
+       SAFETY LOGIC        TELEMETRY
+             │                 │
+             ▼                 ▼
+       Pump Protection     AI Platform
+                               │
+                               ▼
+                         Prediction
+                         Explanation
+                         Recommendation
+```
+
+AI failure must never disable:
+
+* Water-level protection
+* Relay safety
+* Pump shutdown
+* Existing blockage detection
+* Local alarms
+
+The AI layer is an intelligence layer, not the primary safety controller.
+
+---
+
+# 10. CURRENT WATER-LEVEL SYSTEM
+
+Ultrasonic calibration:
 
 ```text
 EMPTY_DISTANCE = 27.75 cm
 FULL_DISTANCE  = 20.49 cm
 ```
 
-Water level is represented as:
+Water level:
 
 ```text
-0% → empty
-100% → critical/full
+0%   = empty
+100% = critical/full
 ```
 
-Current warning behavior:
+Current warning levels:
 
-| Water Level | Current Behavior            |
-| ----------- | --------------------------- |
-| 0–30%       | Green LED                   |
-| 30–60%      | Yellow LED + slow warning   |
-| 60–80%      | Red LED + faster warning    |
-| 80–90%      | Rapid red warning           |
-| 90–<99%     | All warning LEDs blink      |
-| 99–100%     | Continuous critical warning |
+| Level   | Behaviour              |
+| ------- | ---------------------- |
+| 0–30%   | Green                  |
+| 30–60%  | Yellow + slow warning  |
+| 60–80%  | Red + faster warning   |
+| 80–90%  | Rapid red warning      |
+| 90–<99% | All warning LEDs blink |
+| 99–100% | Critical warning       |
 
-The system also maintains a cumulative full-level count.
+The system maintains a cumulative full-level count.
 
-After more than 20 confirmed critical/full-level readings:
+After the configured critical confirmation count:
 
 ```text
 Pump OFF
@@ -174,13 +358,13 @@ Buzzer OFF
 Shutdown latched
 ```
 
-The cumulative count does NOT reset merely because the water level temporarily falls below 99%.
+This existing functionality must remain unchanged.
 
 ---
 
-# 5. CURRENT BLYNK DATASTREAMS
+# 11. BLYNK DATASTREAMS
 
-The existing Blynk dashboard contains the following datastreams.
+Existing telemetry:
 
 | Virtual Pin | Name               | Type    |
 | ----------- | ------------------ | ------- |
@@ -197,118 +381,892 @@ The existing Blynk dashboard contains the following datastreams.
 | V10         | Yellow LED         | Integer |
 | V11         | Red LED            | Integer |
 
-These represent the current IoT telemetry.
+These are the initial IoT inputs.
 
 ---
 
-# 6. MAIN AI APPLICATION OBJECTIVE
+# 12. NEW CORE ARCHITECTURE
 
-Build a professional web application called:
-
-# **DrainGuard AI**
-
-Subtitle:
-
-**Intelligent IoT Drainage Monitoring & Predictive Blockage Detection**
-
-The application should look like a real-world smart-city infrastructure monitoring platform.
-
-It should NOT look like:
-
-* a generic student CRUD application
-* a basic Bootstrap dashboard
-* a simple chart page
-* a static portfolio website
-* a fake AI chatbot
-
-It should look like a serious engineering product.
-
----
-
-# 7. DESIGN DIRECTION
-
-The visual design should communicate:
-
-**Smart City + IoT + AI + Infrastructure Monitoring**
-
-Preferred visual characteristics:
-
-* Modern
-* Professional
-* Dark monitoring-dashboard aesthetic
-* High information density without becoming cluttered
-* Clean cards
-* Subtle gradients
-* Glass / translucent panels where appropriate
-* Professional charts
-* Status indicators
-* Smooth animations
-* Responsive design
-* Excellent desktop experience
-* Usable mobile experience
-
-Suggested visual language:
-
-* Deep dark background
-* Cyan / blue technology accents
-* Green = safe
-* Yellow = warning
-* Red = critical
-* White/light-gray typography
-
-Do NOT overuse neon effects.
-
-Do NOT make it look like a gaming website.
-
-The visual style should be closer to:
+The target architecture is:
 
 ```text
-Smart City Operations Center
-+
-AI Infrastructure Monitoring
-+
-Modern SaaS Dashboard
+                  PHYSICAL DRAINAGE SYSTEM
+                           │
+             ┌─────────────┼─────────────┐
+             │             │             │
+          FLOW 1        FLOW 2       WATER LEVEL
+             │             │             │
+             └─────────────┼─────────────┘
+                           │
+                          ESP32
+                           │
+                       BLYNK / IoT
+                           │
+                    DATA INGESTION
+                           │
+                  ┌────────┴────────┐
+                  │                 │
+           SENSOR HEALTH      FEATURE ENGINE
+                  │                 │
+                  └────────┬────────┘
+                           │
+                     AI FUSION ENGINE
+                           │
+            ┌──────────────┼──────────────┐
+            │              │              │
+       BLOCKAGE RISK   SENSOR FAULT   WATER/FLOOD
+            │              │              │
+            └──────────────┼──────────────┘
+                           │
+                    CONFIDENCE SCORE
+                           │
+                  SEVERITY ESTIMATION
+                           │
+                 DRAIN HEALTH INDEX
+                           │
+                MAINTENANCE PRIORITY
+                           │
+                    DIGITAL TWIN
+                           │
+                    WEB APPLICATION
 ```
 
 ---
 
-# 8. APPLICATION STRUCTURE
+# 13. PRIMARY AI OUTPUT
 
-The application should have a professional navigation structure.
-
-Suggested navigation:
+The system should not produce only:
 
 ```text
-Dashboard
-Live Monitoring
-AI Predictions
-Analytics
-Drainage Health
-Alerts
-Sensor Data
-System Diagnostics
-About System
+BLOCKAGE = YES
 ```
 
-A sidebar navigation is preferred on desktop.
+Instead produce a structured diagnosis:
 
-A responsive navigation system should be used on mobile.
+```text
+Overall Status
+Blockage Risk
+Sensor Health
+Confidence
+Severity
+Recommended Action
+```
+
+Example:
+
+```text
+HIGH BLOCKAGE RISK
+
+Blockage Probability:
+84%
+
+Confidence:
+91%
+
+Sensor Reliability:
+96%
+
+Severity:
+HIGH
+
+Recommended Action:
+Inspect downstream section
+```
 
 ---
 
-# 9. DASHBOARD
+# 14. MULTI-CONDITION DIAGNOSIS
 
-The Dashboard is the most important page.
+The AI should eventually distinguish between:
 
-It should immediately answer:
+```text
+NORMAL
+DEVELOPING BLOCKAGE
+BLOCKAGE
+CRITICAL WATER ACCUMULATION
+SENSOR FAULT
+UNCERTAIN
+```
 
-> "What is happening with the drainage system right now?"
+Do not force every abnormal condition into "BLOCKAGE".
 
-Top-level status card:
+---
 
-## Overall Drainage Status
+# 15. SENSOR HEALTH INTELLIGENCE
 
-Example states:
+This is one of the major differentiating features.
+
+The system should assess whether its own sensor data is trustworthy.
+
+Potential sensor states:
+
+```text
+HEALTHY
+WARNING
+SUSPECTED FAULT
+OFFLINE
+UNCERTAIN
+```
+
+For example:
+
+```text
+Flow Sensor 1
+HEALTHY
+
+Flow Sensor 2
+SUSPECTED FAULT
+
+Ultrasonic Sensor
+HEALTHY
+```
+
+---
+
+# 16. CROSS-SENSOR CONSISTENCY
+
+The system should use physical relationships between sensors.
+
+Example:
+
+```text
+Flow 1 = 50
+Flow 2 = 48
+Water Level = stable
+```
+
+This is likely coherent.
+
+But:
+
+```text
+Flow 1 = 50
+Flow 2 = 0
+Water Level = unchanged
+```
+
+may indicate:
+
+```text
+Possible blockage
+OR
+Flow Sensor 2 fault
+```
+
+The AI/diagnostic layer should explicitly consider both possibilities.
+
+---
+
+# 17. SENSOR FAILURE DEMONSTRATION
+
+The application must support a demonstration of sensor failure.
+
+Example:
+
+Disconnect Flow Sensor 2.
+
+Instead of automatically saying:
+
+```text
+BLOCKAGE DETECTED
+```
+
+the application should be capable of showing:
+
+```text
+DATA QUALITY WARNING
+
+Flow Sensor 2:
+SUSPECTED FAULT
+
+Blockage:
+UNCONFIRMED
+
+AI Confidence:
+LOW
+
+Recommended Action:
+Inspect sensor before maintenance dispatch
+```
+
+This should become a major project demonstration.
+
+---
+
+# 18. UNCERTAINTY-AWARE AI
+
+Do not treat every model output as absolute truth.
+
+The system should communicate:
+
+```text
+Prediction
++
+Confidence
++
+Data Quality
+```
+
+Example:
+
+```text
+BLOCKAGE RISK
+78%
+
+CONFIDENCE
+92%
+
+DATA QUALITY
+GOOD
+```
+
+versus:
+
+```text
+BLOCKAGE RISK
+82%
+
+CONFIDENCE
+31%
+
+DATA QUALITY
+POOR
+```
+
+In the second case, the application should explicitly warn that the prediction is unreliable.
+
+Never display a raw model probability as if it were guaranteed real-world probability without appropriate calibration/evaluation.
+
+---
+
+# 19. AI EXPLANABILITY
+
+The application must explain why a prediction was made.
+
+Example:
+
+```text
+WHY THIS PREDICTION?
+
+↑ Flow difference increasing
+↓ Downstream flow decreasing
+↑ Water level rising
+✓ Sensors are mutually consistent
+✓ Similar pattern observed previously
+```
+
+The explanation must be generated from actual model features and current data.
+
+Do not hard-code fake explanations.
+
+---
+
+# 20. FEATURE ENGINEERING
+
+Initial features:
+
+```text
+flow1
+flow2
+flow_difference
+water_level
+pump_status
+blockage_status
+full_level_count
+```
+
+Derived features:
+
+```text
+flow_ratio
+flow_drop_percentage
+water_level_change_rate
+flow_difference_change_rate
+rolling_mean_flow_difference
+rolling_std_flow_difference
+```
+
+Potential contextual features:
+
+```text
+rainfall
+temperature
+time_of-day
+recent rainfall duration
+```
+
+Only include features for which reliable data is actually available.
+
+---
+
+# 21. FLOW RATIO
+
+Use:
+
+```text
+flow_ratio = flow2 / flow1
+```
+
+Handle:
+
+```text
+flow1 = 0
+```
+
+safely.
+
+Do not allow division-by-zero.
+
+---
+
+# 22. ENVIRONMENTAL CONTEXT
+
+Rainfall is important because heavy rain can create high water levels without necessarily indicating a blockage.
+
+The system should eventually distinguish patterns such as:
+
+### Heavy inflow
+
+```text
+Rainfall ↑
+Flow 1 ↑
+Flow 2 ↑
+Water level ↑
+Flow ratio remains relatively healthy
+```
+
+from:
+
+### Developing blockage
+
+```text
+Rainfall ↑
+Flow 1 ↑
+Flow 2 ↓
+Flow difference ↑
+Water level ↑
+```
+
+The rainfall feature should therefore be treated as contextual evidence, not as a direct blockage label.
+
+If rainfall data is unavailable initially, the system must clearly state that environmental context is unavailable.
+
+Do not fabricate rainfall data.
+
+---
+
+# 23. DATA COLLECTION IS A FIRST-CLASS COMPONENT
+
+Do not train an AI model using fabricated examples.
+
+Real data must be collected from the physical prototype.
+
+Recommended experiment classes:
+
+```text
+NORMAL
+PARTIAL BLOCKAGE
+SEVERE BLOCKAGE
+RISING WATER LEVEL
+SENSOR FAULT
+NOISY SENSOR CONDITION
+RECOVERY
+```
+
+The dataset should contain multiple experiments for each condition.
+
+---
+
+# 24. DATASET SCHEMA
+
+Recommended:
+
+```text
+timestamp
+flow1
+flow2
+flow_difference
+flow_ratio
+water_level
+water_level_change_rate
+flow_difference_change_rate
+pump_status
+full_level_count
+sensor1_health
+sensor2_health
+ultrasonic_health
+rainfall
+blockage_label
+sensor_fault_label
+risk_level
+```
+
+Not every field needs to exist in the first dataset.
+
+The pipeline must support gradual expansion.
+
+---
+
+# 25. IMPORTANT: DATA LABELING
+
+Labels must be based on controlled physical experiments.
+
+For example:
+
+```text
+Valve open
+→ NORMAL
+```
+
+```text
+Valve partially closed
+→ PARTIAL BLOCKAGE
+```
+
+```text
+Valve mostly closed
+→ SEVERE BLOCKAGE
+```
+
+```text
+Flow Sensor 2 disconnected
+→ SENSOR FAULT
+```
+
+Do not automatically use the existing rule engine as the only source of ground truth.
+
+The experimental condition should be recorded separately.
+
+---
+
+# 26. MACHINE LEARNING STRATEGY
+
+Start simple and defensible.
+
+Preferred first model:
+
+## Random Forest
+
+Reasons:
+
+* Suitable for tabular sensor data
+* Captures nonlinear relationships
+* Robust
+* Easy to inspect
+* Works well with engineered features
+* Practical for a final-year engineering prototype
+
+Do NOT use deep learning merely to make the project appear more advanced.
+
+---
+
+# 27. MODEL EVOLUTION
+
+Potential progression:
+
+```text
+Version 1
+Random Forest
+```
+
+then, if enough data exists:
+
+```text
+Version 2
+Gradient Boosting / XGBoost
+```
+
+then optionally:
+
+```text
+Version 3
+Time-series model
+```
+
+Possible anomaly detection:
+
+```text
+Isolation Forest
+One-Class SVM
+Autoencoder
+```
+
+Only implement these if the dataset and project objectives justify them.
+
+---
+
+# 28. MULTI-MODEL POSSIBILITY
+
+The final system may use separate models:
+
+```text
+Model A
+Blockage Risk
+
+Model B
+Sensor Fault Detection
+
+Model C
+Water-Level / Criticality Prediction
+```
+
+These can feed an AI fusion layer.
+
+Example:
+
+```text
+Blockage Risk       84%
+Sensor Fault Risk    7%
+Water Risk           76%
+```
+
+The fusion engine can then produce:
+
+```text
+HIGH BLOCKAGE RISK
+Confidence: 89%
+```
+
+Do not implement unnecessary complexity before the basic system works.
+
+---
+
+# 29. MODEL EVALUATION
+
+When real data exists, evaluate using:
+
+```text
+Accuracy
+Precision
+Recall
+F1 Score
+Confusion Matrix
+```
+
+For multiclass classification, use appropriate macro/weighted metrics.
+
+For binary classification, ROC-AUC may also be useful.
+
+Metrics must be calculated from actual held-out data.
+
+Never invent:
+
+```text
+97% accuracy
+99% precision
+```
+
+just for presentation.
+
+---
+
+# 30. TEMPORAL DATA SPLITTING
+
+Because this is sensor time-series data, avoid careless random splitting that can leak near-identical adjacent samples into both training and test sets.
+
+Prefer:
+
+```text
+Earlier experiments
+        ↓
+Training
+
+Later unseen experiments
+        ↓
+Validation/Test
+```
+
+Where practical, evaluate on entire unseen physical experiments rather than randomly shuffled individual readings.
+
+This is important for demonstrating genuine generalization.
+
+---
+
+# 31. FEATURE IMPORTANCE
+
+If Random Forest is used, show actual feature importance.
+
+Example UI:
+
+```text
+FEATURE IMPORTANCE
+
+Flow Difference          ███████████
+Water Level              █████████
+Flow Ratio               ███████
+Downstream Flow          ██████
+Water Level Rate         █████
+```
+
+These values must come from the trained model.
+
+---
+
+# 32. SHAP / EXPLAINABLE AI
+
+If practical, integrate SHAP for local and global explanations.
+
+For example:
+
+```text
+CURRENT PREDICTION
+
+Flow Difference
+        ↑ increases risk
+
+Water Level
+        ↑ increases risk
+
+Flow Ratio
+        ↓ increases risk
+
+Sensor Reliability
+        → reduces confidence
+```
+
+The UI should distinguish:
+
+```text
+Feature contribution
+```
+
+from:
+
+```text
+Raw feature value
+```
+
+Do not imply causal relationships unless experimentally established.
+
+---
+
+# 33. DRAIN HEALTH INDEX
+
+Create:
+
+# Drain Health Index — DHI
+
+This should summarize the current condition of the monitored drainage segment.
+
+Possible contributing dimensions:
+
+```text
+Flow Health
+Water-Level Health
+Blockage Risk
+Sensor Reliability
+Recent Events
+```
+
+Example:
+
+```text
+DRAIN HEALTH
+
+82 / 100
+
+Flow Health          91
+Water Level Health   76
+Sensor Reliability   95
+Blockage Risk        68
+Recent Events        74
+```
+
+The exact formula must be documented.
+
+Do not invent a score without defining how it is calculated.
+
+---
+
+# 34. MAINTENANCE PRIORITY
+
+The system should eventually answer:
+
+> Which monitored drainage segment needs attention first?
+
+For the current prototype, there may be only one physical segment.
+
+Therefore the UI should support multiple virtual/physical nodes even if only one exists initially.
+
+Example:
+
+```text
+NODE A
+Risk: 91
+Confidence: 94%
+Priority: IMMEDIATE
+
+NODE B
+Risk: 67
+Priority: HIGH
+
+NODE C
+Risk: 21
+Priority: ROUTINE
+```
+
+The prototype can initially represent one monitored segment.
+
+---
+
+# 35. RECOMMENDED ACTION
+
+The AI should provide an operational recommendation.
+
+Examples:
+
+```text
+NORMAL
+Continue monitoring
+```
+
+```text
+DEVELOPING BLOCKAGE
+Increase monitoring frequency
+```
+
+```text
+HIGH BLOCKAGE RISK
+Inspect downstream section
+```
+
+```text
+SENSOR FAULT
+Inspect sensor before dispatching blockage maintenance
+```
+
+```text
+CRITICAL WATER LEVEL
+Follow existing emergency/pump protection procedure
+```
+
+These recommendations are decision-support outputs.
+
+They must not directly control safety hardware.
+
+---
+
+# 36. DIGITAL TWIN
+
+Build a lightweight prototype-scale digital twin of the actual drainage system.
+
+It should visually represent:
+
+```text
+Flow Sensor 1
+      ↓
+Pipe Segment
+      ↓
+Restriction / Blockage
+      ↓
+Flow Sensor 2
+      ↓
+Reservoir / Manhole
+      ↓
+Water Level
+      ↓
+Pump
+```
+
+The digital twin should synchronize with live sensor values.
+
+---
+
+# 37. DIGITAL TWIN STATES
+
+### NORMAL
+
+```text
+Healthy flow
+```
+
+### RESTRICTED
+
+```text
+Reduced downstream flow
+```
+
+### BLOCKAGE
+
+```text
+Strong restriction
+```
+
+### WATER ACCUMULATION
+
+```text
+Rising virtual water level
+```
+
+### CRITICAL
+
+```text
+Pump protection active
+```
+
+The visualization should respond to actual telemetry.
+
+---
+
+# 38. WHAT-IF SIMULATION
+
+Create a controlled simulation mode.
+
+Example controls:
+
+```text
+Blockage Severity
+[────────●────]
+
+Initial Water Level
+[────●────────]
+
+Inflow / Rainfall
+[──────●──────]
+```
+
+Then:
+
+```text
+RUN SIMULATION
+```
+
+Output:
+
+```text
+Predicted Water Level:
+XX%
+
+Predicted Risk:
+HIGH
+
+Estimated Time to Critical:
+XX minutes
+```
+
+If the underlying predictive model is not yet available, clearly label this feature:
+
+```text
+SIMULATION / DEVELOPMENT MODE
+```
+
+Do not fabricate scientifically valid predictions.
+
+---
+
+# 39. DASHBOARD
+
+The dashboard must immediately answer:
+
+> What is happening with the drainage system right now?
+
+Top-level card:
+
+```text
+OVERALL DRAINAGE STATUS
+```
+
+Possible states:
 
 ```text
 NORMAL
@@ -316,25 +1274,17 @@ LOW RISK
 MEDIUM RISK
 HIGH RISK
 CRITICAL
+SENSOR FAULT
+UNCERTAIN
 ```
-
-Display:
-
-* Current status
-* AI confidence
-* Last updated time
-* System connectivity
-* Current blockage state
 
 ---
 
-# 10. LIVE SENSOR CARDS
-
-Create highly polished real-time cards for:
-
-### Flow 1
+# 40. LIVE SENSOR CARDS
 
 Display:
+
+### Flow 1
 
 ```text
 Flow 1
@@ -343,16 +1293,12 @@ XX pulses/sec
 
 ### Flow 2
 
-Display:
-
 ```text
 Flow 2
 XX pulses/sec
 ```
 
 ### Flow Difference
-
-Display:
 
 ```text
 Flow Difference
@@ -361,315 +1307,119 @@ XX
 
 ### Water Level
 
-Display:
-
 ```text
 Water Level
-XX %
+XX%
 ```
 
 ### Pump
 
-Display:
-
 ```text
-Pump
 RUNNING / STOPPED
 ```
 
 ### Full-Level Count
 
-Display:
-
 ```text
-Critical Count
 X / 20
 ```
 
-Each card should contain a small trend indicator where meaningful.
-
----
-
-# 11. LIVE DRAINAGE VISUALIZATION
-
-Create a central visual representation of the drainage pipeline.
-
-The visualization should conceptually show:
+### Sensor Health
 
 ```text
-                 Water Flow
-                     ↓
-
-       ┌─────────────────────────┐
-       │                         │
-       │       FLOW SENSOR 1     │
-       │             ↓           │
-       │        ───────────      │
-       │             ↓           │
-       │        BLOCKAGE?        │
-       │             ↓           │
-       │       FLOW SENSOR 2     │
-       │             ↓           │
-       └─────────────────────────┘
-
-                    ↓
-
-              Water Reservoir
-                    ↓
-               Water Level
-```
-
-The visualization should change according to system state.
-
-For example:
-
-NORMAL:
-
-```text
-Healthy flow → Healthy flow
-```
-
-BLOCKAGE:
-
-```text
-Healthy flow → Restricted flow
-```
-
-CRITICAL:
-
-```text
-Restricted flow → Rising water → Pump protection
-```
-
-This should be visually impressive but still understandable.
-
----
-
-# 12. AI PREDICTION PAGE
-
-Create a dedicated page:
-
-## AI Predictions
-
-This is the core differentiating feature of the project.
-
-The AI should estimate:
-
-### Current Risk
-
-```text
-NORMAL
-LOW
-MEDIUM
-HIGH
-CRITICAL
-```
-
-Display:
-
-* Predicted risk
-* Probability/confidence
-* Important contributing factors
-* Prediction timestamp
-* Current sensor values
-* Historical trend
-
-Example:
-
-```text
-HIGH BLOCKAGE RISK
-
-Confidence
-87%
-
-Primary indicators:
-
-Flow difference increasing
-Downstream flow decreasing
-Water level rising
+GOOD / WARNING / FAULT
 ```
 
 ---
 
-# 13. AI EXPLANATION
+# 41. LIVE PIPE VISUALIZATION
 
-The application should not simply say:
-
-> "AI says HIGH RISK."
-
-It should explain the prediction.
-
-Create a section:
-
-## Why is the AI predicting this?
-
-Example:
+Show:
 
 ```text
-The system detected:
-
-• Downstream flow is significantly lower than upstream flow
-• Flow difference has increased over the last 60 seconds
-• Water level is rising
-• The pattern resembles previous blockage events
-
-These combined signals increased the predicted blockage risk.
+FLOW SENSOR 1
+      ↓
+   FLOWING
+      ↓
+  RESTRICTION
+      ↓
+FLOW SENSOR 2
+      ↓
+ WATER LEVEL
+      ↓
+    PUMP
 ```
 
-This is extremely important for demonstrating responsible AI.
+Use animation to represent actual flow direction.
+
+Do not overuse animation.
 
 ---
 
-# 14. AI RISK GAUGE
+# 42. AI PREDICTION PAGE
 
-Create a visually impressive risk gauge.
+Create:
 
-Example:
+# AI Diagnostics
 
-```text
-                 87%
-              HIGH RISK
-
-       LOW ───────────── HIGH
-```
-
-The gauge should dynamically reflect the AI prediction.
-
----
-
-# 15. AI FEATURES
-
-The AI model should eventually use features such as:
+Show:
 
 ```text
-flow1
-flow2
-flow_difference
-water_level
-water_level_change_rate
-flow_difference_change_rate
-pump_status
-blockage_status
-full_level_count
-```
-
-Additional engineered features can include:
-
-```text
-flow_ratio
-rolling_mean_flow_difference
-rolling_std_flow_difference
-water_level_velocity
-flow_drop_percentage
-```
-
-Example:
-
-```text
-flow_ratio = flow2 / flow1
-```
-
-Handle division by zero safely.
-
----
-
-# 16. AI MODEL
-
-The first production model should preferably be:
-
-## Random Forest Classifier
-
-Reason:
-
-* Works well with tabular sensor data
-* Handles nonlinear relationships
-* Easy to explain
-* Robust for a student/engineering prototype
-* Already aligned with the project's ML direction
-
-Possible target:
-
-```text
-risk_level
-```
-
-with classes:
-
-```text
-NORMAL
-LOW
-MEDIUM
-HIGH
-CRITICAL
-```
-
-However, if the available real dataset is initially too small for five reliable classes, begin with:
-
-```text
-NORMAL
 BLOCKAGE RISK
-CRITICAL
+84%
+
+CONFIDENCE
+91%
+
+SENSOR RELIABILITY
+96%
+
+SEVERITY
+HIGH
 ```
 
-and expand later.
-
-DO NOT fabricate model accuracy.
-
-If the model has not yet been trained on real data, clearly label the AI module as:
+Then:
 
 ```text
-AI MODEL: DEVELOPMENT / DATA COLLECTION
+WHY?
 ```
 
-Do not display fake percentages.
+Then show actual contributing features.
 
 ---
 
-# 17. DATA COLLECTION
-
-The system should support historical IoT sensor data.
-
-Recommended dataset structure:
-
-```text
-timestamp
-flow1
-flow2
-flow_difference
-water_level
-water_level_change_rate
-flow_difference_change_rate
-flow_ratio
-pump_status
-blockage_status
-full_level_count
-risk_label
-```
+# 43. AI DIAGNOSIS PANEL
 
 Example:
 
-```csv
-timestamp,flow1,flow2,flow_difference,water_level,water_level_change_rate,flow_ratio,pump_status,blockage_status,risk_label
-2026-09-13 10:00:01,52,51,1,22.4,0.1,0.98,1,0,NORMAL
-2026-09-13 10:00:02,52,48,4,22.6,0.2,0.92,1,0,NORMAL
-2026-09-13 10:00:03,52,30,22,23.1,0.5,0.58,1,1,HIGH
+```text
+AI DIAGNOSIS
+
+Primary condition:
+Developing blockage
+
+Supporting evidence:
+• Flow difference increasing
+• Downstream flow decreasing
+• Water level increasing
+• Sensor readings consistent
+
+Alternative explanation:
+Low probability of sensor fault
+
+Recommended action:
+Inspect downstream pipe section
 ```
 
-This is an example schema only.
-
-Do NOT treat these example values as real training data.
+The alternative explanation is important.
 
 ---
 
-# 18. ANALYTICS PAGE
-
-Create an analytics page showing historical behavior.
+# 44. ANALYTICS PAGE
 
 Include:
 
 ### Flow History
-
-Line chart:
 
 ```text
 Flow 1
@@ -678,15 +1428,11 @@ Flow 2
 
 ### Flow Difference
 
-Line chart showing:
-
 ```text
 Flow Difference vs Time
 ```
 
 ### Water Level
-
-Area/line chart:
 
 ```text
 Water Level vs Time
@@ -694,91 +1440,66 @@ Water Level vs Time
 
 ### AI Risk
 
-Timeline showing:
-
 ```text
-Risk Level vs Time
+Risk vs Time
 ```
 
-### Blockage Events
-
-Show:
+### Sensor Health
 
 ```text
-Number of detected events
-Average duration
-Peak severity
+Sensor reliability over time
+```
+
+### Events
+
+```text
+Blockage Events
+Sensor Fault Events
+Critical Water Events
 ```
 
 ---
 
-# 19. CORRELATION / AI INSIGHTS
+# 45. ALERTS
 
-Create an intelligent insights section.
-
-Example:
+Alerts should contain:
 
 ```text
-AI Insight
-
-Downstream flow has fallen 42% relative to upstream flow
-over the last 30 seconds.
-
-Water level is increasing simultaneously.
-
-This pattern is consistent with developing flow restriction.
+Timestamp
+Severity
+Event
+Sensor Evidence
+AI Confidence
+Recommended Action
+Status
 ```
 
-The insights must be generated from actual data.
+Examples:
 
-Do not create fake insights.
+```text
+WARNING
+Developing flow restriction detected
+```
+
+```text
+HIGH
+High blockage risk
+```
+
+```text
+CRITICAL
+Critical water level
+Pump protection active
+```
+
+```text
+DIAGNOSTIC
+Flow Sensor 2 may be malfunctioning
+```
 
 ---
 
-# 20. ALERTS PAGE
-
-Create an Alerts page.
-
-Alerts should include:
-
-### Information
-
-```text
-System operating normally
-```
-
-### Warning
-
-```text
-Potential drainage restriction detected
-```
-
-### High Risk
-
-```text
-High blockage probability detected
-```
-
-### Critical
-
-```text
-Critical water level detected
-Pump protection activated
-```
-
-Each alert should contain:
-
-* Timestamp
-* Severity
-* Event
-* Sensor evidence
-* Status
-
----
-
-# 21. SENSOR DATA PAGE
-
-Create a detailed data table.
+# 46. SENSOR DATA PAGE
 
 Columns:
 
@@ -787,26 +1508,27 @@ Timestamp
 Flow 1
 Flow 2
 Difference
+Flow Ratio
 Water Level
 Pump
 Blockage
+Sensor Health
 AI Risk
+Confidence
 ```
 
 Features:
 
 * Search
-* Filtering
 * Sorting
-* Date filtering
+* Filtering
+* Date range
 * Export CSV
 * Pagination
 
 ---
 
-# 22. SYSTEM DIAGNOSTICS
-
-Create a System Diagnostics page.
+# 47. SYSTEM DIAGNOSTICS
 
 Show:
 
@@ -818,45 +1540,40 @@ Blynk
 CONNECTED / DISCONNECTED
 
 Flow Sensor 1
-ONLINE / OFFLINE
+HEALTHY / FAULT
 
 Flow Sensor 2
-ONLINE / OFFLINE
+HEALTHY / FAULT
 
 Ultrasonic Sensor
-ONLINE / OFFLINE
+HEALTHY / FAULT
 
 Relay
 ACTIVE / INACTIVE
 
 Pump
 RUNNING / STOPPED
-
-Last Data Received
-XX seconds ago
 ```
 
-If real connectivity information is unavailable, clearly indicate:
+If information is unavailable:
 
 ```text
 DATA NOT AVAILABLE
 ```
 
-Do not pretend that a component is connected.
+Never pretend.
 
 ---
 
-# 23. DATA FRESHNESS
+# 48. DATA FRESHNESS
 
-Real-time data must display a clear timestamp.
-
-Example:
+Always show:
 
 ```text
 Updated 2 seconds ago
 ```
 
-If data becomes stale:
+If stale:
 
 ```text
 DATA STALE
@@ -869,86 +1586,57 @@ If disconnected:
 OFFLINE
 ```
 
-This makes the dashboard feel like a real monitoring platform.
-
 ---
 
-# 24. BACKEND ARCHITECTURE
+# 49. BACKEND ARCHITECTURE
 
-Preferred architecture:
+Preferred:
 
 ```text
 ESP32
    ↓
-Blynk / IoT Layer
+Blynk / IoT
    ↓
-Data Ingestion API
+Data Ingestion
    ↓
 Database
    ↓
 Feature Engineering
    ↓
-ML Prediction Service
+Sensor Health
+   ↓
+ML Prediction
+   ↓
+AI Fusion
    ↓
 REST API
    ↓
 React Frontend
 ```
 
-Recommended backend technology:
+Backend:
 
 ```text
 Python
 FastAPI
-scikit-learn
 pandas
 NumPy
+scikit-learn
 ```
 
-Recommended database for the prototype:
+Database:
 
 ```text
-SQLite
+SQLite initially
 ```
 
-or
+PostgreSQL can be introduced if deployment requires it.
 
-```text
-PostgreSQL
-```
-
-Use PostgreSQL if deployment architecture benefits from it.
+Do not introduce unnecessary microservices.
 
 ---
 
-# 25. FRONTEND
-
-Preferred:
-
-```text
-React
-```
-
-Use the project's existing frontend if one exists.
-
-Do NOT create an unnecessary second frontend framework.
-
-Recommended libraries where useful:
-
-```text
-React Router
-Recharts
-Lucide React
-Axios
-```
-
-Use modern CSS or the project's existing styling system.
-
-Avoid unnecessary dependencies.
-
----
-
-# 26. API DESIGN
+# 50. API DESIGN
 
 Suggested endpoints:
 
@@ -970,40 +1658,66 @@ GET /api/ai/prediction
 POST /api/ai/predict
 
 GET /api/ai/model-info
+
+GET /api/sensors/health
+
+GET /api/drain-health
+
+GET /api/maintenance/priority
+```
+
+---
+
+# 51. AI PREDICTION API
+
+Example request:
+
+```json
+{
+  "flow1": 52,
+  "flow2": 31,
+  "flow_difference": 21,
+  "water_level": 67.4
+}
 ```
 
 Possible response:
 
 ```json
 {
-  "risk_level": "HIGH",
-  "probability": 0.87,
-  "timestamp": "2026-09-13T10:00:03",
+  "condition": "DEVELOPING_BLOCKAGE",
+  "risk_score": 0.84,
+  "confidence": 0.91,
+  "sensor_reliability": 0.96,
+  "severity": "HIGH",
   "reasons": [
-    "High flow difference",
-    "Downstream flow reduction",
+    "Increasing flow difference",
+    "Reduced downstream flow",
     "Rising water level"
-  ]
+  ],
+  "recommended_action": "Inspect downstream section"
 }
 ```
 
+The exact API schema can evolve.
+
+Do not expose raw internal model details unnecessarily.
+
 ---
 
-# 27. AI MODEL INFORMATION PAGE
+# 52. MODEL INFORMATION PAGE
 
-Show model transparency.
-
-Example:
+Show:
 
 ```text
 Model
 Random Forest Classifier
 
 Features
-10
+XX
 
-Training Samples
-XXXX
+Training Experiments
+XX
 
 Validation Accuracy
 XX%
@@ -1018,217 +1732,136 @@ F1 Score
 XX%
 ```
 
-ONLY show these values when they actually exist.
+Only display real values.
 
-Never invent metrics.
+If training has not happened:
+
+```text
+MODEL STATUS
+Awaiting real training data
+```
 
 ---
 
-# 28. MODEL EVALUATION
-
-When real training data is available, evaluate using:
-
-```text
-Accuracy
-Precision
-Recall
-F1 Score
-Confusion Matrix
-ROC-AUC where appropriate
-```
-
-For a multiclass model, use appropriate multiclass metrics.
-
-The application should ideally provide a visual confusion matrix on the AI/model page.
-
----
-
-# 29. FEATURE IMPORTANCE
-
-Because Random Forest supports feature importance, show:
-
-```text
-Feature Importance
-```
-
-Example:
-
-```text
-Flow Difference              ███████████
-Water Level                  █████████
-Flow Ratio                   ███████
-Downstream Flow              ██████
-Water Level Change Rate      █████
-```
-
-These values must come from the actual trained model.
-
-This feature is useful for demonstrating how the AI reaches its predictions.
-
----
-
-# 30. AI VS RULE-BASED DETECTION
-
-The application should clearly distinguish between:
-
-### Existing Embedded Rule Engine
-
-```text
-Flow difference threshold
-+
-3-second confirmation
-```
-
-and:
-
-### AI Prediction
-
-```text
-Multiple sensor patterns
-+
-Historical behavior
-+
-Machine learning
-```
-
-The AI should ideally detect developing risk before the deterministic threshold is fully triggered.
-
-This distinction should be clearly explained in the UI.
-
----
-
-# 31. IMPORTANT SAFETY ARCHITECTURE
-
-The AI must NEVER directly control the pump safety mechanism unless explicitly designed and tested later.
-
-Current architecture:
-
-```text
-ESP32 SAFETY LOGIC
-        ↓
-Pump Protection
-```
-
-AI:
-
-```text
-ESP32 / IoT Data
-        ↓
-AI MODEL
-        ↓
-Prediction / Recommendation
-```
-
-AI failure must not disable:
-
-* Water-level protection
-* Relay safety
-* Pump shutdown
-* Existing blockage detection
-
-This separation is mandatory.
-
----
-
-# 32. DEMO MODE
-
-The application should support a controlled demonstration mode.
+# 53. DEMO MODE
 
 Create:
 
-```text
-Demo Mode
-```
+# Demo Mode
 
-This allows the project to demonstrate different conditions without requiring physical hardware every time.
-
-Possible scenarios:
+Scenarios:
 
 ```text
-Normal Drainage
+Normal
 Partial Blockage
 Severe Blockage
 Rapid Water Rise
-Critical Water Level
+Critical
+Sensor Failure
 Recovery
 ```
 
-Demo Mode should be clearly labelled:
+Clearly label:
 
 ```text
 DEMO DATA
 ```
 
-Never mix demo data with real sensor data without clearly identifying it.
+Never present demo values as live physical sensor data.
 
 ---
 
-# 33. LIVE DEMONSTRATION FLOW
+# 54. IMPORTANT DEMONSTRATION SEQUENCE
 
-The application should make this demonstration extremely easy:
+The final project demonstration should ideally show:
 
-### Scenario 1 — Normal
-
-Display:
+## Test 1 — Normal
 
 ```text
+Flow 1 ≈ Flow 2
+Water level stable
+
+AI:
 NORMAL
-Low blockage risk
-Healthy flow
+High confidence
 ```
 
-### Scenario 2 — Partial Blockage
+## Test 2 — Partial blockage
 
-Simulate reduction in downstream flow.
-
-Display:
+Partially close the existing valve.
 
 ```text
-FLOW RESTRICTION DETECTED
-AI RISK INCREASING
+Flow 1 > Flow 2
+Difference increases
+
+AI:
+DEVELOPING BLOCKAGE
+Risk increasing
 ```
 
-### Scenario 3 — Severe Blockage
+## Test 3 — Severe blockage
 
-Display:
+Close further.
 
 ```text
-HIGH BLOCKAGE RISK
+Large flow difference
+Water level rising
+
+AI:
+HIGH / CRITICAL
 ```
 
-### Scenario 4 — Rising Water Level
+## Test 4 — Sensor fault
 
-Display:
+Disconnect Flow Sensor 2.
+
+Expected behaviour:
 
 ```text
-WATER LEVEL WARNING
+SENSOR FAULT SUSPECTED
+
+Blockage:
+UNCONFIRMED
+
+Confidence:
+LOW
 ```
 
-### Scenario 5 — Critical
+## Test 5 — Recovery
 
-Display:
+Open the valve again.
+
+The system should show:
 
 ```text
-CRITICAL WATER LEVEL
-PUMP PROTECTION ACTIVE
+Risk decreasing
+Flow recovering
+Water level recovering
 ```
 
-This should make the final project demonstration visually strong.
+This demonstrates that the system understands a changing physical process rather than simply displaying static alarms.
 
 ---
 
-# 34. PROJECT LANDING PAGE
+# 55. LANDING PAGE
 
-The root page can also include a professional project overview.
-
-Hero section:
+Hero:
 
 ```text
-AI-Powered Drainage Monitoring
+DRAINING INTELLIGENCE FOR SMART CITIES
 
-Detect blockages.
-Predict risk.
-Protect urban drainage infrastructure.
+Detect.
+Diagnose.
+Predict.
+Explain.
+Act.
+```
+
+Subheading:
+
+```text
+A trustworthy IoT and AI platform for real-time drainage monitoring,
+blockage prediction and intelligent maintenance decision support.
 ```
 
 Buttons:
@@ -1236,68 +1869,47 @@ Buttons:
 ```text
 Open Live Dashboard
 Explore AI
-View System
-```
-
-Include a simple architecture visualization:
-
-```text
-SENSORS
-   ↓
-ESP32
-   ↓
-IoT CLOUD
-   ↓
-AI ENGINE
-   ↓
-PREDICTION
-   ↓
-SMART ALERTS
+View Digital Twin
 ```
 
 ---
 
-# 35. ABOUT SYSTEM PAGE
+# 56. ABOUT PAGE
 
-Explain:
-
-### Problem
-
-Urban drainage systems can become blocked by:
-
-* Plastic
-* Leaves
-* Mud
-* Waste
-* Sediment
-
-Blockages reduce water flow and can cause water accumulation and flooding.
-
-### Solution
-
-This project combines:
+Explain the problem:
 
 ```text
+Urban drainage systems are vulnerable to blockage,
+water accumulation and delayed maintenance.
+```
+
+Explain the solution:
+
+```text
+DrainGuard AI combines:
+
 IoT sensing
 +
-Real-time monitoring
-+
-Rule-based detection
+Rule-based protection
 +
 Machine learning
 +
+Sensor-health intelligence
++
+Explainable AI
++
 Predictive analytics
++
+Digital twin
++
+Maintenance decision support
 ```
-
-to create an intelligent drainage monitoring platform.
 
 ---
 
-# 36. TECH STACK
+# 57. TECH STACK
 
-Display the technology stack:
-
-### Hardware
+## Hardware
 
 ```text
 ESP32
@@ -1309,13 +1921,13 @@ LEDs
 Buzzer
 ```
 
-### IoT
+## IoT
 
 ```text
 Blynk
 ```
 
-### AI/ML
+## AI/ML
 
 ```text
 Python
@@ -1323,21 +1935,25 @@ pandas
 NumPy
 scikit-learn
 Random Forest
+SHAP where appropriate
 ```
 
-### Backend
+## Backend
 
 ```text
 FastAPI
 ```
 
-### Frontend
+## Frontend
 
 ```text
 React
+Recharts
+Lucide React
+Axios
 ```
 
-### Database
+## Database
 
 ```text
 SQLite / PostgreSQL
@@ -1345,9 +1961,9 @@ SQLite / PostgreSQL
 
 ---
 
-# 37. RESPONSIVENESS
+# 58. RESPONSIVE DESIGN
 
-The application MUST work properly on:
+Must work on:
 
 ```text
 Desktop
@@ -1356,17 +1972,65 @@ Tablet
 Mobile
 ```
 
-Desktop should be the primary design target.
+Desktop is the primary target.
 
-The dashboard should not break when the screen becomes narrow.
+Charts must resize correctly.
 
-Charts should resize correctly.
-
-Tables should become horizontally scrollable or responsive.
+Tables must remain usable on smaller screens.
 
 ---
 
-# 38. UX REQUIREMENTS
+# 59. VISUAL DESIGN
+
+The design should communicate:
+
+```text
+Smart City
++
+Infrastructure
++
+AI
++
+Engineering
+```
+
+Preferred:
+
+* Dark professional dashboard
+* Deep background
+* Cyan/blue technology accents
+* Green = safe
+* Yellow = warning
+* Red = critical
+* White/light-gray text
+* Clean charts
+* Subtle glass effects
+* Professional typography
+* Minimal but meaningful animation
+
+Avoid:
+
+* Gaming aesthetics
+* Excessive neon
+* Excessive gradients
+* Giant decorative elements
+* Fake 3D effects
+* Generic Bootstrap appearance
+
+---
+
+# 60. UX PRINCIPLES
+
+The user should understand system condition within approximately five seconds.
+
+The interface must answer:
+
+```text
+What is happening?
+Why?
+How confident are we?
+What should I do?
+```
 
 Use:
 
@@ -1375,52 +2039,24 @@ Use:
 * Error states
 * Offline states
 * Tooltips
-* Clear status labels
+* Clear severity indicators
 * Accessible contrast
-* Keyboard-friendly controls
 * Consistent spacing
 * Consistent typography
 
-Avoid:
-
-* Excessive animations
-* Giant text everywhere
-* Random gradients
-* Unnecessary popups
-* Fake loading screens
-* Fake data presented as real
-
 ---
 
-# 39. PERFORMANCE
+# 61. ERROR HANDLING
 
-The application should:
-
-* Avoid unnecessary API requests
-* Poll live data at a sensible interval
-* Clean up timers when components unmount
-* Avoid memory leaks
-* Avoid unnecessary React re-renders
-* Lazy-load heavy pages where useful
-* Keep chart rendering efficient
-
----
-
-# 40. ERROR HANDLING
-
-If the IoT backend is unavailable:
-
-Show:
+If IoT is unavailable:
 
 ```text
 IoT CONNECTION UNAVAILABLE
 
-The dashboard cannot currently retrieve live sensor data.
+Live sensor data cannot currently be retrieved.
 ```
 
-Do NOT show fabricated sensor values.
-
-If the AI model is unavailable:
+If AI is unavailable:
 
 ```text
 AI PREDICTION UNAVAILABLE
@@ -1428,11 +2064,19 @@ AI PREDICTION UNAVAILABLE
 The underlying IoT monitoring system remains operational.
 ```
 
-This distinction is important.
+If a sensor is suspected faulty:
+
+```text
+SENSOR DATA QUALITY WARNING
+
+AI predictions may be unreliable until the sensor is inspected.
+```
+
+Never replace unavailable real data with fake values.
 
 ---
 
-# 41. SECURITY
+# 62. SECURITY
 
 Never commit:
 
@@ -1442,18 +2086,12 @@ Wi-Fi SSID
 Wi-Fi Password
 API Keys
 Database Credentials
-Secrets
 ```
 
 Use:
 
 ```text
 .env
-```
-
-and provide:
-
-```text
 .env.example
 ```
 
@@ -1466,33 +2104,13 @@ WIFI_PASSWORD=
 DATABASE_URL=
 ```
 
-Never expose secrets in frontend source code.
+Never expose credentials in frontend code.
 
 ---
 
-# 42. CODE QUALITY
+# 63. PROJECT STRUCTURE
 
-Write production-quality code.
-
-Requirements:
-
-* Clear folder structure
-* Reusable components
-* Meaningful variable names
-* Modular backend
-* Environment variables
-* Proper error handling
-* API separation
-* No giant monolithic files
-* No duplicated components
-* No unnecessary packages
-* Comments only where useful
-
----
-
-# 43. RECOMMENDED PROJECT STRUCTURE
-
-A possible structure:
+Suggested:
 
 ```text
 project-root/
@@ -1535,45 +2153,56 @@ project-root/
 └── AI_APPLICATION_SPEC.md
 ```
 
-Adapt this structure to the existing repository rather than blindly replacing it.
+Adapt this to the existing repository.
+
+Do not blindly replace the existing project structure.
 
 ---
 
-# 44. DEVELOPMENT STRATEGY
+# 64. DEVELOPMENT PHASES
 
-Build in phases.
+## PHASE 1 — Repository Analysis
 
-## PHASE 1 — UI
+Before writing code:
+
+1. Inspect the entire repository.
+2. Identify the current frontend.
+3. Identify the current backend.
+4. Identify the ESP32 code.
+5. Identify Blynk integration.
+6. Identify existing documentation.
+7. Identify secrets and environment configuration.
+8. Do not modify anything yet.
+
+Then provide a concise implementation plan.
+
+---
+
+# 65. PHASE 2 — PROFESSIONAL UI
 
 Build:
 
-* Dashboard
-* Live Monitoring
-* Analytics
-* AI Predictions
-* Alerts
-* Sensor Data
-* Diagnostics
-* About
+```text
+Dashboard
+Live Monitoring
+AI Diagnostics
+Analytics
+Drain Health
+Alerts
+Sensor Data
+System Diagnostics
+Digital Twin
+Simulation
+About
+```
 
-Use clearly labelled demo/mock data ONLY if real API data is not yet available.
+Use demo data only where necessary.
 
----
-
-## PHASE 2 — Backend
-
-Implement:
-
-* FastAPI
-* Sensor endpoints
-* Historical data
-* Database
-* Health checks
-* Alert system
+Clearly mark demo data.
 
 ---
 
-## PHASE 3 — Data Pipeline
+# 66. PHASE 3 — DATA PIPELINE
 
 Implement:
 
@@ -1582,25 +2211,50 @@ IoT
 ↓
 Data ingestion
 ↓
+Validation
+↓
 Storage
 ↓
 Feature engineering
+↓
+Sensor health
 ```
+
+Data validation must happen before ML.
 
 ---
 
-## PHASE 4 — ML
+# 67. PHASE 4 — SENSOR HEALTH
+
+Implement basic rules first.
+
+Examples:
+
+```text
+Impossible values
+Missing values
+Constant values
+Sudden unrealistic jumps
+Cross-sensor inconsistency
+Communication timeout
+```
+
+Then optionally add ML-based anomaly detection.
+
+---
+
+# 68. PHASE 5 — MACHINE LEARNING
 
 Implement:
 
 ```text
-Dataset
+Real dataset
 ↓
 Cleaning
 ↓
 Feature engineering
 ↓
-Train/test split
+Experiment-based train/test split
 ↓
 Random Forest
 ↓
@@ -1609,261 +2263,486 @@ Evaluation
 Model persistence
 ```
 
-Save model using an appropriate method such as:
+Save using:
 
 ```text
 joblib
 ```
 
+Never train using fabricated data and present the results as real.
+
 ---
 
-## PHASE 5 — AI API
+# 69. PHASE 6 — EXPLAINABILITY
 
-Expose:
+Implement:
 
 ```text
-POST /api/ai/predict
+Feature importance
 ```
 
-Input:
+and, where practical:
 
-```json
-{
-  "flow1": 52,
-  "flow2": 31,
-  "flow_difference": 21,
-  "water_level": 67.4
-}
+```text
+SHAP
 ```
 
-Return:
+The UI must clearly distinguish model explanation from causal proof.
 
-```json
-{
-  "risk_level": "HIGH",
-  "probability": 0.87,
-  "reasons": [
-    "Large upstream/downstream flow difference",
-    "Reduced downstream flow"
-  ]
-}
+---
+
+# 70. PHASE 7 — AI FUSION
+
+Combine:
+
+```text
+Blockage prediction
++
+Sensor health
++
+Water-level state
++
+Environmental context
+```
+
+into a final decision.
+
+Example:
+
+```text
+BLOCKAGE RISK       84%
+SENSOR FAULT RISK    7%
+WATER RISK          76%
+
+FINAL:
+HIGH BLOCKAGE RISK
+```
+
+If evidence conflicts:
+
+```text
+UNCERTAIN
+```
+
+should be an acceptable output.
+
+---
+
+# 71. PHASE 8 — DIGITAL TWIN
+
+Connect the virtual drainage representation to actual telemetry.
+
+Show:
+
+```text
+Flow
+Restriction
+Water Level
+Pump
+System State
 ```
 
 ---
 
-## PHASE 6 — Frontend Integration
+# 72. PHASE 9 — WHAT-IF SIMULATION
 
-Connect the frontend to the backend.
+Implement simulation only after the live system and ML pipeline work.
 
-Replace demo data with real API data.
+The simulation must clearly distinguish:
+
+```text
+REAL SENSOR DATA
+```
+
+from:
+
+```text
+SIMULATED DATA
+```
 
 ---
 
-## PHASE 7 — Testing
+# 73. PHASE 10 — TESTING
 
 Test:
 
-* API
-* ML prediction
-* Frontend
-* Responsive design
-* Error handling
-* IoT disconnection
+### Hardware integration
+
+* Live sensor data
+* Pump
+* Relay
+* Water level
+* Blockage
+
+### Sensor faults
+
+* Flow sensor disconnect
+* Ultrasonic abnormal reading
+* Missing data
+* Communication loss
+
+### AI
+
+* Normal condition
+* Partial blockage
+* Severe blockage
+* Sensor fault
+* Recovery
+
+### Frontend
+
+* Responsive layout
+* API failure
 * AI failure
-* Demo mode
+* Empty state
+* Offline state
 
 ---
 
-# 45. DO NOT DO THESE THINGS
+# 74. PERFORMANCE
+
+The application should:
+
+* Avoid unnecessary API requests
+* Poll at sensible intervals
+* Clean up timers
+* Avoid memory leaks
+* Avoid unnecessary React renders
+* Keep charts efficient
+* Use lazy loading where useful
+
+---
+
+# 75. DO NOT DO THESE THINGS
 
 DO NOT:
 
 1. Rewrite the working ESP32 firmware unnecessarily.
-2. Change the existing GPIO assignments without a strong reason.
-3. Break the Blynk integration.
+2. Change GPIO assignments unnecessarily.
+3. Break Blynk.
 4. Remove existing sensor functionality.
-5. Replace the deterministic safety mechanism with AI.
-6. Claim AI accuracy without real training/evaluation.
-7. Fabricate sensor readings as real data.
+5. Replace embedded safety with AI.
+6. Claim AI accuracy without real evaluation.
+7. Fabricate production sensor data.
 8. Commit credentials.
-9. Create fake AI explanations unrelated to actual features.
-10. Add unnecessary technologies just to make the project appear complex.
-11. Build a generic dashboard template.
-12. Overcomplicate the system with microservices unless genuinely necessary.
-13. Add an LLM chatbot merely because the project contains AI.
-14. Make AI the only method of detecting dangerous water levels.
+9. Generate fake AI explanations.
+10. Create a fake chatbot just to call the project "AI".
+11. Build only a generic dashboard.
+12. Add technologies without a real purpose.
+13. Use deep learning without sufficient data.
+14. Treat every anomaly as a blockage.
+15. Treat every model probability as absolute truth.
+16. Hide uncertainty from the user.
+17. Present demo/simulated data as real sensor data.
+18. Claim that the project is the first system in the world to use AI for drainage blockage detection.
+19. Copy commercial product functionality without adapting it to this project's actual prototype.
+20. Add unnecessary microservices.
 
 ---
 
-# 46. WHAT MAKES THIS PROJECT "AI"
+# 76. WHAT ACTUALLY MAKES THIS PROJECT AI
 
-The AI component should provide genuine machine-learning functionality.
-
-The goal is NOT:
+The AI is NOT:
 
 ```text
-Chatbot + Dashboard = AI
+Chatbot
++
+Dashboard
 ```
 
-The goal is:
+The AI is:
 
 ```text
-IoT Sensor Data
-       ↓
+Real IoT Data
+      ↓
 Feature Engineering
-       ↓
+      ↓
+Sensor Health Analysis
+      ↓
 Machine Learning
-       ↓
-Blockage Risk Prediction
-       ↓
-Explainable Risk Indicators
-       ↓
-Early Warning
+      ↓
+Multi-Condition Diagnosis
+      ↓
+Confidence / Uncertainty
+      ↓
+Explainable Prediction
+      ↓
+Risk Assessment
+      ↓
+Maintenance Recommendation
 ```
-
-The AI should ideally identify patterns that indicate an increasing likelihood of blockage before the traditional threshold detector becomes fully triggered.
 
 ---
 
-# 47. FUTURE AI EXTENSIONS
+# 77. FUTURE EXTENSIONS
 
-After the basic Random Forest implementation works, optional improvements can include:
+Only after the core system is working:
+
+### Rainfall Integration
+
+Use real rainfall data to improve contextual reasoning.
 
 ### Time-Series Prediction
 
-Use historical sequences to predict:
+Predict:
 
 ```text
-Water level after 1 minute
-Water level after 5 minutes
+Future water level
+Future blockage risk
 ```
 
 ### Anomaly Detection
 
-Detect unusual drainage behavior without requiring labels.
-
-Possible methods:
+Potential:
 
 ```text
 Isolation Forest
-Autoencoder
 One-Class SVM
+Autoencoder
 ```
 
-### Predictive Maintenance
+### Advanced Models
 
-Estimate:
+Potential:
 
 ```text
-Sensor health
-Pump health
-Abnormal sensor behavior
+XGBoost
+Gradient Boosting
+Temporal models
 ```
 
 ### Computer Vision
 
-Future version could use a camera to detect:
+Future camera-based detection:
 
 ```text
-Garbage accumulation
-Plastic blockage
+Plastic
 Leaves
+Garbage
 Debris
 ```
 
-Do not implement these unless they provide real value and sufficient data exists.
+### Acoustic Sensing
 
----
-
-# 48. FINAL PRODUCT EXPERIENCE
-
-When a user opens the application, the experience should be:
+Future extension:
 
 ```text
-OPEN APPLICATION
-       ↓
-SYSTEM STATUS
-       ↓
-LIVE SENSOR DATA
-       ↓
-DRAINAGE VISUALIZATION
-       ↓
-AI RISK
-       ↓
-WHY AI THINKS THIS
-       ↓
-HISTORICAL TREND
-       ↓
-ALERTS
+Acoustic blockage localization
 ```
 
-The user should understand the condition of the drainage system within approximately 5 seconds.
+Do not add these merely for complexity.
 
 ---
 
-# 49. FINAL SUCCESS CRITERIA
+# 78. FINAL DEMONSTRATION STORY
 
-The application is considered successful when:
+The final demonstration should tell this story:
 
-### IoT
+## STEP 1
 
-* Live sensor values can be displayed
-* Water level is displayed
-* Flow 1 and Flow 2 are displayed
-* Flow difference is displayed
-* Pump status is displayed
-* Blockage status is displayed
+System is healthy.
 
-### AI
+```text
+NORMAL
+```
 
-* A real ML model can be trained
-* Model predictions can be requested through an API
-* Risk level is displayed
-* Prediction confidence is displayed
-* Feature importance is available
-* AI reasoning is based on actual sensor features
-* Model metrics are displayed only when genuinely calculated
+## STEP 2
 
-### Dashboard
+Valve is partially closed.
 
-* Professional UI
-* Responsive layout
-* Live monitoring
-* Historical charts
-* Alerts
-* Diagnostics
-* AI prediction page
+```text
+Downstream flow decreases
+```
 
-### Reliability
+AI detects:
 
-* No fake production data
+```text
+DEVELOPING BLOCKAGE
+```
+
+## STEP 3
+
+Restriction increases.
+
+```text
+Water level rises
+```
+
+AI predicts:
+
+```text
+HIGH RISK
+```
+
+## STEP 4
+
+Explain the prediction.
+
+```text
+Flow difference increasing
+Downstream flow decreasing
+Water level rising
+Sensors consistent
+```
+
+## STEP 5
+
+Disconnect Flow Sensor 2.
+
+System should recognize:
+
+```text
+SENSOR FAULT SUSPECTED
+```
+
+rather than blindly declaring a blockage.
+
+## STEP 6
+
+Reconnect the sensor and recover the physical system.
+
+System should show:
+
+```text
+RISK DECREASING
+SYSTEM RECOVERING
+```
+
+This sequence demonstrates:
+
+```text
+Detection
++
+Prediction
++
+Explainability
++
+Fault Awareness
++
+Recovery
+```
+
+---
+
+# 79. FINAL SUCCESS CRITERIA
+
+## IoT
+
+* Live sensor values
+* Water level
+* Flow 1
+* Flow 2
+* Flow difference
+* Pump status
+* Blockage status
+* LED states
+
+## AI
+
+* Real ML model
+* Real training data
+* Experiment-based evaluation
+* Blockage risk
+* Sensor fault awareness
+* Confidence
+* Explainability
+* Feature importance
+* Actual model metrics
+
+## Intelligence
+
+* Multi-sensor reasoning
+* Alternative explanations
+* Sensor reliability
+* Drain health
+* Severity
+* Maintenance recommendation
+
+## Digital Twin
+
+* Live physical-system representation
+* Synchronized state
+* Restriction visualization
+* Water-level visualization
+* Pump state
+
+## Simulation
+
+* Controlled what-if scenarios
+* Clearly labelled simulated data
+* Future prediction where supported by validated models
+
+## Reliability
+
+* No fake production values
+* No fake AI metrics
 * No exposed credentials
-* AI failure does not break safety controls
-* IoT failure is clearly communicated
+* AI failure does not compromise safety
+* Sensor failure is communicated
+* IoT failure is communicated
+* Uncertainty is visible
 
 ---
 
-# 50. DEVELOPMENT INSTRUCTION FOR CLAUDE
+# 80. INSTRUCTIONS TO CLAUDE CODE
 
-You are acting as a **senior full-stack engineer + ML engineer + product designer**.
+You are acting as:
+
+* Senior full-stack engineer
+* Machine-learning engineer
+* IoT systems engineer
+* AI/ML product designer
+* Data engineer
+* UX designer
 
 Before writing code:
 
-1. Inspect the existing repository.
-2. Understand the current architecture.
-3. Identify what already works.
-4. Do not overwrite working functionality unnecessarily.
-5. Follow this specification.
-6. Build incrementally.
-7. Test after every major phase.
-8. Keep the implementation understandable.
-9. Prefer a clean working system over unnecessary complexity.
-10. Never fabricate AI results or performance metrics.
+1. Read this entire specification.
+2. Inspect the entire repository.
+3. Understand the existing architecture.
+4. Identify all working functionality.
+5. Preserve working IoT functionality.
+6. Inspect existing ESP32 and Blynk code.
+7. Identify existing frontend/backend before creating replacements.
+8. Identify secrets and move them to environment variables if necessary.
+9. Do not fabricate data.
+10. Do not fabricate model metrics.
+11. Do not claim unsupported AI capabilities.
+12. Build incrementally.
+13. Test every major phase.
+14. Prefer simple, defensible engineering over unnecessary complexity.
 
-The final result should feel like a **real AI-powered smart-city drainage monitoring product**, while remaining technically honest and demonstrable using the actual IoT hardware.
+Before making significant changes, produce a concise plan containing:
+
+```text
+1. Existing architecture
+2. Files to preserve
+3. Files to modify
+4. Files to create
+5. Dependencies to add
+6. Data flow
+7. ML strategy
+8. Testing strategy
+```
+
+Then implement the system phase by phase.
 
 ---
 
-# 51. ONE-SENTENCE PRODUCT DEFINITION
+# 81. MOST IMPORTANT PRODUCT PRINCIPLE
 
-> **DrainGuard AI is an intelligent IoT drainage monitoring platform that combines real-time flow and water-level sensing with machine-learning-based blockage risk prediction to provide early warnings and protect drainage infrastructure.**
+The application should NOT merely answer:
+
+> "Is there a blockage?"
+
+It should answer:
+
+> **"What is happening, can I trust the sensor data, what is likely causing it, how confident is the system, what is likely to happen next, and what should be done?"**
+
+That is the core identity of DrainGuard AI.
+
+---
+
+# 82. FINAL PRODUCT DEFINITION
+
+> **DrainGuard AI is a trustworthy, explainable and fault-aware IoT drainage intelligence platform that transforms real-time multi-sensor drainage data into blockage diagnosis, predictive risk assessment, sensor-health analysis, drainage health scoring, and maintenance decision support through a prototype-scale digital twin.**
