@@ -2,6 +2,7 @@
 // ESP32 DRAINAGE BLOCKAGE DETECTION SYSTEM
 // Blynk IoT + Water Level + 2 Flow Sensors
 // LEDs + Buzzer + Relay + Automatic Pump Protection
+// + Blynk Manual Pump Control
 // ============================================================
 
 // ============================================================
@@ -10,15 +11,20 @@
 
 #define BLYNK_TEMPLATE_ID "TMPL3zJG9PmKu"
 #define BLYNK_TEMPLATE_NAME "IoT based Drainage Block Detection"
-#define BLYNK_AUTH_TOKEN "naveenasaraswathinivethathomas"
+
+// IMPORTANT:
+// Put your Blynk Auth Token here.
+// Do NOT share this token publicly.
+#define BLYNK_AUTH_TOKEN "YOUR_BLYNK_AUTH_TOKEN"
 
 #include <WiFi.h>
 #include <BlynkSimpleEsp32.h>
 
 // -------------------- WIFI --------------------
 
-char ssid[] = "Airtel_Los Pollos Hermanos";
-char pass[] = "venugopalfromtidelpark";
+// Put your existing Wi-Fi credentials here.
+char ssid[] = "YOUR_WIFI_NAME";
+char pass[] = "YOUR_WIFI_PASSWORD";
 
 // Blynk timer
 BlynkTimer timer;
@@ -50,6 +56,17 @@ const int RED_LED    = 18;
 #define BLYNK_GREEN_LED  V9
 #define BLYNK_YELLOW_LED V10
 #define BLYNK_RED_LED    V11
+
+
+// ============================================================
+// BLYNK PUMP CONTROL
+// ============================================================
+
+// V12 = Manual Pump Control
+// 0 = Pump OFF
+// 1 = Pump ON
+
+#define BLYNK_PUMP_CONTROL V12
 
 
 // ============================================================
@@ -119,6 +136,16 @@ const int FULL_LEVEL_CONFIRM_COUNT = 20;
 int fullLevelCount = 0;
 
 bool pumpShutdown = false;
+
+
+// ============================================================
+// MANUAL PUMP CONTROL
+// ============================================================
+
+// false = pump OFF
+// true  = pump ON
+
+bool manualPumpRequest = false;
 
 
 // ============================================================
@@ -210,6 +237,229 @@ void IRAM_ATTR pulseCounter2() {
 
 
 // ============================================================
+// ACTUAL PUMP STATE
+// ============================================================
+
+bool isPumpOn() {
+
+  // Relay LOW = Pump ON
+  return digitalRead(RELAY_PIN) == LOW;
+}
+
+
+// ============================================================
+// UPDATE PUMP LED
+// ============================================================
+
+void updatePumpLED() {
+
+  bool pumpState = isPumpOn();
+
+  setLed(
+    BLUE_LED,
+    pumpState,
+    BLYNK_BLUE_LED,
+    blueLedState
+  );
+}
+
+
+// ============================================================
+// UPDATE PUMP STATUS ON BLYNK
+// ============================================================
+
+void updatePumpStatus() {
+
+  // ----------------------------------------------------------
+  // SAFETY SHUTDOWN HAS HIGHEST PRIORITY
+  // ----------------------------------------------------------
+
+  if (pumpShutdown) {
+
+    Blynk.virtualWrite(
+      V5,
+      "OFF - SAFETY SHUTDOWN"
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // ACTUAL RELAY / PUMP STATE
+  // ----------------------------------------------------------
+
+  if (isPumpOn()) {
+
+    Blynk.virtualWrite(
+      V5,
+      "ON - MANUAL"
+    );
+
+  }
+
+  else {
+
+    Blynk.virtualWrite(
+      V5,
+      "OFF - MANUAL"
+    );
+  }
+}
+
+
+// ============================================================
+// UPDATE PUMP CONTROL
+// ============================================================
+
+void updatePumpControl() {
+
+  // ==========================================================
+  // SAFETY OVERRIDE
+  // ==========================================================
+
+  // If automatic safety shutdown is active,
+  // the phone cannot turn the pump back ON.
+
+  if (pumpShutdown) {
+
+    manualPumpRequest = false;
+
+    digitalWrite(
+      RELAY_PIN,
+      HIGH
+    );
+
+    updatePumpLED();
+
+    return;
+  }
+
+
+  // ==========================================================
+  // MANUAL BLYNK CONTROL
+  // ==========================================================
+
+  if (manualPumpRequest) {
+
+    // Pump ON
+    digitalWrite(
+      RELAY_PIN,
+      LOW
+    );
+
+  }
+
+  else {
+
+    // Pump OFF
+    digitalWrite(
+      RELAY_PIN,
+      HIGH
+    );
+  }
+
+
+  // Update blue LED
+  updatePumpLED();
+}
+
+
+// ============================================================
+// BLYNK PUMP BUTTON
+// ============================================================
+
+BLYNK_WRITE(BLYNK_PUMP_CONTROL)
+{
+
+  int value = param.asInt();
+
+
+  // ==========================================================
+  // SAFETY SHUTDOWN ACTIVE
+  // ==========================================================
+
+  if (pumpShutdown) {
+
+    manualPumpRequest = false;
+
+    // Force relay OFF
+    digitalWrite(
+      RELAY_PIN,
+      HIGH
+    );
+
+
+    // Force Blynk switch OFF
+    Blynk.virtualWrite(
+      BLYNK_PUMP_CONTROL,
+      0
+    );
+
+
+    Serial.println();
+    Serial.println(
+      "BLYNK PUMP REQUEST IGNORED"
+    );
+
+    Serial.println(
+      "Reason: SAFETY SHUTDOWN ACTIVE"
+    );
+
+    Serial.println();
+
+
+    updatePumpLED();
+
+    return;
+  }
+
+
+  // ==========================================================
+  // STORE MANUAL REQUEST
+  // ==========================================================
+
+  if (value == 1) {
+
+    manualPumpRequest = true;
+
+    Serial.println();
+    Serial.println(
+      "BLYNK COMMAND: PUMP ON"
+    );
+
+    Serial.println(
+      "Pump control mode: MANUAL"
+    );
+
+  }
+
+  else {
+
+    manualPumpRequest = false;
+
+    Serial.println();
+    Serial.println(
+      "BLYNK COMMAND: PUMP OFF"
+    );
+
+    Serial.println(
+      "Pump control mode: MANUAL"
+    );
+  }
+
+
+  // Apply command
+  updatePumpControl();
+
+
+  // Update Blynk status
+  updatePumpStatus();
+
+}
+
+
+// ============================================================
 // SEND DATA TO BLYNK
 // ============================================================
 
@@ -219,22 +469,35 @@ void sendDataToBlynk() {
   // FLOW SENSOR DATA
   // ----------------------------------------------------------
 
-  Blynk.virtualWrite(V0, flow1Pulses);
-  Blynk.virtualWrite(V1, flow2Pulses);
+  Blynk.virtualWrite(
+    V0,
+    flow1Pulses
+  );
+
+  Blynk.virtualWrite(
+    V1,
+    flow2Pulses
+  );
 
 
   // ----------------------------------------------------------
   // WATER LEVEL
   // ----------------------------------------------------------
 
-  Blynk.virtualWrite(V2, currentWaterLevel);
+  Blynk.virtualWrite(
+    V2,
+    currentWaterLevel
+  );
 
 
   // ----------------------------------------------------------
   // FLOW DIFFERENCE
   // ----------------------------------------------------------
 
-  Blynk.virtualWrite(V3, flowDifference);
+  Blynk.virtualWrite(
+    V3,
+    flowDifference
+  );
 
 
   // ----------------------------------------------------------
@@ -263,22 +526,7 @@ void sendDataToBlynk() {
   // PUMP STATUS
   // ----------------------------------------------------------
 
-  if (pumpShutdown) {
-
-    Blynk.virtualWrite(
-      V5,
-      "OFF - SHUTDOWN"
-    );
-
-  }
-
-  else {
-
-    Blynk.virtualWrite(
-      V5,
-      "ON"
-    );
-  }
+  updatePumpStatus();
 
 
   // ----------------------------------------------------------
@@ -381,6 +629,23 @@ void sendDataToBlynk() {
     BLYNK_RED_LED,
     redLedState ? 1 : 0
   );
+
+
+  // ----------------------------------------------------------
+  // PUMP CONTROL STATE
+  // ----------------------------------------------------------
+
+  // Keep V12 synchronized with the actual requested state.
+  // During safety shutdown it is forced OFF.
+
+  if (pumpShutdown) {
+
+    Blynk.virtualWrite(
+      BLYNK_PUMP_CONTROL,
+      0
+    );
+
+  }
 }
 
 
@@ -397,59 +662,104 @@ void setup() {
   // ULTRASONIC
   // ==========================================================
 
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
+  pinMode(
+    TRIG_PIN,
+    OUTPUT
+  );
+
+  pinMode(
+    ECHO_PIN,
+    INPUT
+  );
 
 
   // ==========================================================
   // LEDs
   // ==========================================================
 
-  pinMode(BLUE_LED, OUTPUT);
-  pinMode(GREEN_LED, OUTPUT);
-  pinMode(YELLOW_LED, OUTPUT);
-  pinMode(RED_LED, OUTPUT);
+  pinMode(
+    BLUE_LED,
+    OUTPUT
+  );
+
+  pinMode(
+    GREEN_LED,
+    OUTPUT
+  );
+
+  pinMode(
+    YELLOW_LED,
+    OUTPUT
+  );
+
+  pinMode(
+    RED_LED,
+    OUTPUT
+  );
 
 
   // ==========================================================
   // BUZZER
   // ==========================================================
 
-  pinMode(BUZZER, OUTPUT);
+  pinMode(
+    BUZZER,
+    OUTPUT
+  );
 
 
   // ==========================================================
   // FLOW SENSORS
   // ==========================================================
 
-  pinMode(FLOW_SENSOR_1, INPUT_PULLUP);
-  pinMode(FLOW_SENSOR_2, INPUT_PULLUP);
+  pinMode(
+    FLOW_SENSOR_1,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    FLOW_SENSOR_2,
+    INPUT_PULLUP
+  );
 
 
   // ==========================================================
   // RELAY
   // ==========================================================
 
-  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(
+    RELAY_PIN,
+    OUTPUT
+  );
 
 
   // ==========================================================
-  // INITIAL STATES
+  // INITIAL PUMP STATE
   // ==========================================================
 
-  // Pump ON
-  digitalWrite(RELAY_PIN, LOW);
+  // IMPORTANT:
+  // Pump starts OFF.
+  //
+  // The Blynk V12 switch will determine whether
+  // the pump should be ON or OFF.
+
+  manualPumpRequest = false;
+
+  digitalWrite(
+    RELAY_PIN,
+    HIGH
+  );
 
 
   // ----------------------------------------------------------
-  // Blue LED = Pump ON
+  // Blue LED = Pump OFF initially
   // ----------------------------------------------------------
 
-  blueLedState = true;
+  blueLedState = false;
 
   digitalWrite(
     BLUE_LED,
-    HIGH
+    LOW
   );
 
 
@@ -487,6 +797,10 @@ void setup() {
   );
 
 
+  // ----------------------------------------------------------
+  // Ultrasonic trigger LOW
+  // ----------------------------------------------------------
+
   digitalWrite(
     TRIG_PIN,
     LOW
@@ -523,6 +837,20 @@ void setup() {
     BLYNK_AUTH_TOKEN,
     ssid,
     pass
+  );
+
+
+  // ==========================================================
+  // SYNCHRONIZE BLYNK PUMP SWITCH
+  // ==========================================================
+
+  // Ask Blynk server for the current V12 value.
+  //
+  // BLYNK_WRITE(V12) will automatically be called
+  // when the value is received.
+
+  Blynk.syncVirtual(
+    BLYNK_PUMP_CONTROL
   );
 
 
@@ -572,15 +900,23 @@ void setup() {
   );
 
   Serial.println(
+    "Blynk Manual Pump Control Enabled"
+  );
+
+  Serial.println(
     "=============================================================="
   );
 
   Serial.println(
-    "Pump: ON"
+    "Pump: Waiting for Blynk Control"
   );
 
   Serial.println(
-    "Blue LED: Pump Status"
+    "V12: Manual Pump Control"
+  );
+
+  Serial.println(
+    "Blue LED: Actual Pump Status"
   );
 
   Serial.println(
@@ -777,29 +1113,10 @@ void loop() {
 
 
     // --------------------------------------------------------
-    // Blue LED = pump status
+    // Blue LED = actual pump status
     // --------------------------------------------------------
 
-    if (pumpShutdown) {
-
-      setLed(
-        BLUE_LED,
-        false,
-        BLYNK_BLUE_LED,
-        blueLedState
-      );
-
-    }
-
-    else {
-
-      setLed(
-        BLUE_LED,
-        true,
-        BLYNK_BLUE_LED,
-        blueLedState
-      );
-    }
+    updatePumpLED();
 
 
     // --------------------------------------------------------
@@ -881,7 +1198,15 @@ void loop() {
       if (pumpShutdown) {
 
         Serial.println(
-          "OFF"
+          "OFF - SAFETY SHUTDOWN"
+        );
+
+      }
+
+      else if (isPumpOn()) {
+
+        Serial.println(
+          "ON - MANUAL"
         );
 
       }
@@ -889,7 +1214,7 @@ void loop() {
       else {
 
         Serial.println(
-          "ON"
+          "OFF - MANUAL"
         );
       }
     }
@@ -994,15 +1319,37 @@ void loop() {
           FULL_LEVEL_CONFIRM_COUNT
         ) {
 
+          // ==================================================
+          // SAFETY SHUTDOWN
+          // ==================================================
+
           pumpShutdown =
             true;
 
 
+          // Manual request cancelled
+
+          manualPumpRequest =
+            false;
+
+
+          // --------------------------------------------------
           // Pump OFF
+          // --------------------------------------------------
 
           digitalWrite(
             RELAY_PIN,
             HIGH
+          );
+
+
+          // --------------------------------------------------
+          // Force Blynk pump switch OFF
+          // --------------------------------------------------
+
+          Blynk.virtualWrite(
+            BLYNK_PUMP_CONTROL,
+            0
           );
 
 
@@ -1039,7 +1386,9 @@ void loop() {
           );
 
 
+          // --------------------------------------------------
           // Buzzer OFF
+          // --------------------------------------------------
 
           digitalWrite(
             BUZZER,
@@ -1063,6 +1412,10 @@ void loop() {
 
           Serial.println(
             " PUMP SHUT DOWN"
+          );
+
+          Serial.println(
+            " BLYNK PUMP CONTROL DISABLED"
           );
 
           Serial.println(
@@ -1092,16 +1445,18 @@ void loop() {
 
     // ========================================================
     // NORMAL LED / BUZZER SYSTEM
-    // Only operates while pump is running.
+    //
+    // This operates only while the pump is actually ON.
     // ========================================================
 
     if (
-      !pumpShutdown
+      !pumpShutdown &&
+      isPumpOn()
     ) {
 
 
       // ------------------------------------------------------
-      // BLUE LED = PUMP STATUS
+      // BLUE LED = ACTUAL PUMP STATUS
       // ------------------------------------------------------
 
       setLed(
@@ -1483,10 +1838,74 @@ void loop() {
 
 
     // ========================================================
+    // PUMP IS MANUALLY OFF
+    // ========================================================
+
+    else if (
+      !pumpShutdown &&
+      !isPumpOn()
+    ) {
+
+      // ------------------------------------------------------
+      // Pump is OFF.
+      // Blue LED OFF.
+      // ------------------------------------------------------
+
+      setLed(
+        BLUE_LED,
+        false,
+        BLYNK_BLUE_LED,
+        blueLedState
+      );
+
+
+      // ------------------------------------------------------
+      // Warning LEDs OFF
+      // ------------------------------------------------------
+
+      setLed(
+        GREEN_LED,
+        false,
+        BLYNK_GREEN_LED,
+        greenLedState
+      );
+
+      setLed(
+        YELLOW_LED,
+        false,
+        BLYNK_YELLOW_LED,
+        yellowLedState
+      );
+
+      setLed(
+        RED_LED,
+        false,
+        BLYNK_RED_LED,
+        redLedState
+      );
+
+
+      // ------------------------------------------------------
+      // Buzzer OFF
+      // ------------------------------------------------------
+
+      digitalWrite(
+        BUZZER,
+        HIGH
+      );
+
+      buzzerState =
+        false;
+    }
+
+
+    // ========================================================
     // AFTER PUMP SHUTDOWN
     // ========================================================
 
-    else {
+    if (
+      pumpShutdown
+    ) {
 
       // Everything OFF
 
@@ -1632,7 +2051,15 @@ void loop() {
       if (pumpShutdown) {
 
         Serial.println(
-          "OFF"
+          "OFF - SAFETY SHUTDOWN"
+        );
+
+      }
+
+      else if (isPumpOn()) {
+
+        Serial.println(
+          "ON - MANUAL"
         );
 
       }
@@ -1640,7 +2067,7 @@ void loop() {
       else {
 
         Serial.println(
-          "ON"
+          "OFF - MANUAL"
         );
       }
     }
