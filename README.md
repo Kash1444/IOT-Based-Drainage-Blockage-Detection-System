@@ -4,7 +4,7 @@ An IoT-based smart drainage monitoring and blockage detection system designed to
 
 The prototype uses an **ESP32**, two **flow sensors**, a waterproof **ultrasonic water-level sensor**, LEDs, a buzzer, a relay-controlled pump, and **Blynk IoT** for real-time monitoring.
 
-![image]([https://user-images.githubusercontent.com/.../image.png](https://github.com/Kash1444/IOT-Based-Drainage-Blockage-Detection-System/blob/5ec15b4f503e0e511ddbdd05ee7567ed31326c7b/Drain%20Guard%20AI%20Dashboard.png))
+![Drain Guard AI Dashboard](https://raw.githubusercontent.com/Kash1444/IOT-Based-Drainage-Blockage-Detection-System/5ec15b4f503e0e511ddbdd05ee7567ed31326c7b/Drain%20Guard%20AI%20Dashboard.png)
 
 ---
 
