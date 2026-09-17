@@ -23,6 +23,11 @@ def test_cross_sensor_fault_is_not_called_blockage():
     assert r.status_code == 200
     assert r.json()["condition"] == "SENSOR_FAULT"
 
+def test_zero_flow_is_uncertain_not_confirmed_fault():
+    r = client.post("/api/ai/predict", json={"flow1":0,"flow2":0,"water_level":0})
+    assert r.status_code == 200
+    assert r.json()["condition"] == "UNCERTAIN"
+
 def test_offline_state_does_not_fabricate_live_values():
     old = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     client.post("/api/ingest", json={"flow1": 12, "flow2": 11, "water_level": 20, "timestamp": old})
@@ -57,3 +62,32 @@ def test_blynk_adapter_uses_documented_virtual_pin_query(monkeypatch):
     assert adapter.read("V0") == "42"
     assert ("v0", "") in captured["params"]
     assert captured["timeout"] == 10
+
+def test_latest_exposes_persisted_blynk_datastreams():
+    streams = {f"V{i}": str(i * 10) for i in range(8)}
+    response = client.post("/api/ingest", json={
+        "flow1": 42, "flow2": 21, "water_level": 32,
+        "blynk_datastreams": streams, "source": "blynk",
+    })
+    assert response.status_code == 200
+    latest = client.get("/api/sensors/latest").json()
+    assert latest["blynk_datastreams"] == streams
+    assert {f"V{i}" for i in range(8)} <= set(latest["blynk_datastreams"])
+
+def test_alerts_are_transition_deduplicated_and_have_evidence():
+    client.post("/api/ingest", json={"flow1": 80, "flow2": 5, "water_level": 75})
+    first = client.get("/api/alerts").json()["items"]
+    second = client.get("/api/alerts").json()["items"]
+    assert first and len(first) == len(second)
+    assert {"timestamp", "status", "evidence"} <= set(first[0])
+    assert isinstance(first[0]["evidence"], list)
+
+def test_csv_export_handles_derived_and_blynk_fields():
+    response = client.get("/api/export.csv")
+    assert response.status_code == 200
+    assert "flow_difference" in response.text
+
+def test_model_status_does_not_claim_unvalidated_artifact():
+    info = client.get("/api/ai/model-info").json()
+    assert info["honest"] is True
+    assert info["status"] in ("RULE_BASED_FALLBACK", "TRAINED_VALID")

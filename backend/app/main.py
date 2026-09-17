@@ -45,6 +45,9 @@ def db():
       id INTEGER PRIMARY KEY, experiment_id INTEGER NOT NULL, reading_id INTEGER,
       timestamp TEXT NOT NULL, label TEXT NOT NULL, flow1 REAL, flow2 REAL,
       water_level REAL, features_json TEXT, FOREIGN KEY(experiment_id) REFERENCES experiments(id))""")
+    con.execute("""CREATE TABLE IF NOT EXISTS alert_events (
+      id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL, status TEXT NOT NULL,
+      severity TEXT NOT NULL, condition TEXT NOT NULL, evidence_json TEXT NOT NULL)""")
     # Migrate databases from the first release.
     for column, definition in (("health_json", "TEXT"), ("experiment_id", "INTEGER"), ("blynk_json", "TEXT")):
         try: con.execute(f"ALTER TABLE readings ADD COLUMN {column} {definition}")
@@ -90,6 +93,16 @@ def freshness(timestamp):
 def _history(limit=20):
     with db() as con: return [dict(r) for r in con.execute("SELECT * FROM readings ORDER BY id DESC LIMIT ?", (limit,))]
 
+def _expose_blynk(rows):
+    for row in rows:
+        raw = row.pop("blynk_json", None)
+        if raw:
+            try: row["blynk_datastreams"] = json.loads(raw)
+            except (TypeError, json.JSONDecodeError): row["blynk_datastreams"] = {}
+        else:
+            row.setdefault("blynk_datastreams", {})
+    return rows
+
 def sensor_states(item, rows=None):
     f = freshness(item.get("timestamp"))
     states = {k: "HEALTHY" for k in ("flow1", "flow2", "ultrasonic")}
@@ -99,6 +112,9 @@ def sensor_states(item, rows=None):
         return {k: "MISSING" for k in states}
     if item["flow1"] > 10000 or item["flow2"] > 10000 or not 0 <= item["water_level"] <= 100:
         return {k: "IMPOSSIBLE" for k in states}
+    if item["flow1"] == 0 and item["flow2"] == 0:
+        states["flow1"] = states["flow2"] = "UNCERTAIN"
+        return states
     if len(vals) >= 4 and all(abs(v["flow1"]-vals[0]["flow1"]) < 1e-9 and abs(v["flow2"]-vals[0]["flow2"]) < 1e-9 for v in vals[:4]):
         states["flow1"] = states["flow2"] = "STUCK"
     if len(vals) >= 2 and (abs(item["flow1"]-vals[1]["flow1"]) > 500 or abs(item["flow2"]-vals[1]["flow2"]) > 500):
@@ -114,6 +130,11 @@ def diagnose(flow1, flow2, water_level, sensor_health=None):
     ft = features(flow1, flow2, water_level); health = sensor_health or {}
     bad = [v for v in health.values() if v not in ("HEALTHY",)]
     reliability = 1.0 if not bad else 0.0 if any(v in ("OFFLINE","MISSING") for v in bad) else .55
+    if bad and all(v == "UNCERTAIN" for v in health.values() if v != "HEALTHY"):
+        return {"condition":"UNCERTAIN","risk_score":None,"confidence":.25,"sensor_reliability":reliability,
+          "severity":"UNKNOWN","reasons":["Flow sensors report no pulses; the current reading does not distinguish no inflow from sensor inactivity"],
+          "recommended_action":"Verify pump operation and flow path before dispatching maintenance",
+          "features":ft,"model_used":False,"model_status":"RULE_BASED_FALLBACK"}
     if bad:
         return {"condition":"SENSOR_FAULT","risk_score":None,"confidence":0,"sensor_reliability":reliability,
           "severity":"UNKNOWN","reasons":["Telemetry health is not trustworthy"],"recommended_action":"Inspect sensor before dispatching blockage maintenance",
@@ -171,8 +192,23 @@ def latest():
     global _latest
     if _latest is not None: return _latest
     rows=_history(1)
-    if rows: return rows[0]
+    if rows:
+        return _expose_blynk(rows)[0]
     return {"flow1":None,"flow2":None,"water_level":None,"pump_status":"UNKNOWN","full_level_count":0,"timestamp":None,"source":"none","flow_difference":None,"flow_ratio":None}
+
+def _record_alert(con, diagnosis):
+    """Persist an alert only when its observable state changes."""
+    condition = diagnosis.get("condition", "NO_TELEMETRY")
+    status = "ACTIVE" if condition not in ("NORMAL", "NO_TELEMETRY", "SENSOR_FAULT") else "CLEAR"
+    evidence = diagnosis.get("reasons") or []
+    latest_row = con.execute("SELECT status,condition FROM alert_events ORDER BY id DESC LIMIT 1").fetchone()
+    if latest_row and latest_row["status"] == status and latest_row["condition"] == condition:
+        return
+    con.execute(
+        "INSERT INTO alert_events(timestamp,status,severity,condition,evidence_json) VALUES(?,?,?,?,?)",
+        (datetime.now(timezone.utc).isoformat(), status, diagnosis.get("severity", "UNKNOWN"),
+         condition, json.dumps(evidence)),
+    )
 
 def _ingest(reading, experiment_id=None, sample_label=None):
     data=reading.model_dump(); data["timestamp"]=(reading.timestamp or datetime.now(timezone.utc)).isoformat()
@@ -188,6 +224,9 @@ def _ingest(reading, experiment_id=None, sample_label=None):
         if experiment_id:
             con.execute("INSERT INTO experiment_samples(experiment_id,reading_id,timestamp,label,flow1,flow2,water_level,features_json) SELECT id,?,?,?,?,?,?,? FROM experiments WHERE id=? AND status='running'",
               (cur.lastrowid,data["timestamp"],sample_label or "telemetry",data["flow1"],data["flow2"],data["water_level"],json.dumps(data),experiment_id))
+        # Record only alert state transitions; repeated polls do not create noise.
+        _record_alert(con, diagnose(data["flow1"], data["flow2"], data["water_level"],
+                                    sensor_states(data, _history(20))))
     return data
 
 @asynccontextmanager
@@ -223,10 +262,11 @@ def health(): return {"status":"ok","mode":("demo" if DEMO_MODE else "live"),"da
 @app.get("/api/sensors/latest")
 def sensors_latest():
     item=latest(); item["freshness"]=freshness(item.get("timestamp")); item["sensor_health"]=sensor_health()["sensors"]
+    item["blynk_datastreams"] = item.get("blynk_datastreams") or {}
     item["diagnosis"]=diagnose(item.get("flow1"),item.get("flow2"),item.get("water_level"),item["sensor_health"]); return item
 @app.get("/api/sensors/history")
 def sensors_history(limit:int=Query(100,ge=1,le=1000)):
-    rows=list(reversed(_history(limit)))
+    rows=_expose_blynk(list(reversed(_history(limit))))
     for i,r in enumerate(rows): r.update(temporal_features(r,rows[:i]))
     return {"items":rows,"count":len(rows)}
 @app.post("/api/ingest")
@@ -239,7 +279,7 @@ def ingest_blynk():
     if not a.configured: raise HTTPException(503,"Blynk adapter is not configured")
     try:
         # Blynk Cloud documented endpoint: /external/api/get?token=...&v=V0
-        raw=a.read_datastreams()
+        raw=a.read_datastreams(("V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7"))
         return {"accepted":True,"reading":_ingest(Reading(flow1=float(raw["V0"]),flow2=float(raw["V1"]),water_level=float(raw["V2"]),
             pump_status=str(raw["V5"]),full_level_count=int(float(raw["V6"])),blockage_status=str(raw["V4"]),
             water_level_status=str(raw["V7"]),blynk_datastreams={key: str(value) for key, value in raw.items()},source="blynk"))}
@@ -250,7 +290,7 @@ def status():
     current_mode = "live" if f["fresh"] and x.get("source") == "blynk" else "demo" if DEMO_MODE else "offline"
     return {"mode":current_mode,"data_fresh":f["fresh"],"freshness":f,
             "source":x.get("source"),"pump_status":x.get("pump_status"),"database":"ok",
-            "model_status":"trained" if MODEL_PATH.exists() else "RULE_BASED_FALLBACK",
+            "model_status":model_info()["status"],
             "connection_message":None if f["fresh"] else "IoT connection unavailable. Live sensor data cannot currently be retrieved.",
             "blynk":_poll_state,
             "polling":{"enabled":bool(POLL_SECONDS and not DEMO_MODE),"interval_seconds":POLL_SECONDS}}
@@ -268,20 +308,41 @@ def sensor_health():
     good=all(v=="HEALTHY" for v in states.values()); return {"sensors":states,"reliability":1.0 if good else .0 if not f["fresh"] else .55,"freshness":f,"cross_sensor_consistency":"COHERENT" if good else "INCONSISTENT"}
 @app.get("/api/drain-health")
 def drain_health():
-    x=latest(); p=prediction(); risk=p.get("risk_score"); return {"score":None if risk is None else round(.5*max(0,100-abs(p["features"]["flow_difference"])*2)+.25*max(0,100-x["water_level"])+.25*(1-risk)*100),"formula":"50% flow + 25% water-level + 25% inverse blockage risk","dimensions":{} if risk is None else {"flow_health":round(max(0,100-abs(p["features"]["flow_difference"])*2)),"water_level_health":round(max(0,100-x["water_level"])),"blockage_risk":round(risk*100)},"freshness":freshness(x.get("timestamp"))}
+    x=latest(); p=prediction(); risk=p.get("risk_score")
+    if risk is None: return {"score":None,"formula":"Weighted observed factors; unavailable inputs remain null","dimensions":{},"factors":{},"freshness":freshness(x.get("timestamp"))}
+    f=p["features"]; health=sensor_health(); ratio=f.get("flow_ratio")
+    factors={"flow_balance":round(max(0, min(100, (ratio or 0)*100))),
+             "water_level":round(max(0,100-float(x["water_level"]))),
+             "blockage_inverse":round((1-risk)*100),
+             "sensor_reliability":round(health["reliability"]*100),
+             "temporal_stability":round(max(0,100-abs(f.get("flow_difference_std_5") or 0)*4))}
+    weights={"flow_balance":.3,"water_level":.2,"blockage_inverse":.25,"sensor_reliability":.15,"temporal_stability":.1}
+    score=round(sum(factors[k]*weights[k] for k in weights),1)
+    return {"score":score,"formula":"30% flow balance + 20% water level + 25% inverse blockage risk + 15% sensor reliability + 10% temporal stability","dimensions":factors,"factors":factors,"freshness":freshness(x.get("timestamp"))}
 @app.get("/api/maintenance/priority")
 def priority():
     p=prediction(); r=p.get("risk_score"); return {"node":"NODE-A","risk":None if r is None else round(r*100),"confidence":round(p["confidence"]*100),"priority":"UNKNOWN" if r is None else "IMMEDIATE" if r>=.75 else "HIGH" if r>=.45 else "ROUTINE"}
 @app.get("/api/alerts")
 def alerts():
-    p=prediction(); return {"items":[{"severity":p["severity"],"condition":p["condition"],"message":r} for r in p["reasons"]] if p["condition"] not in ("NORMAL","NO_TELEMETRY") else []}
+    p=prediction()
+    with db() as con:
+        _record_alert(con, p)
+        rows=[dict(r) for r in con.execute("SELECT * FROM alert_events ORDER BY id DESC LIMIT 50")]
+    for row in rows:
+        row["evidence"]=json.loads(row.pop("evidence_json"))
+        row["message"]="; ".join(row["evidence"])
+    return {"items":rows,"active":p["condition"] not in ("NORMAL","NO_TELEMETRY","SENSOR_FAULT")}
 @app.get("/api/analytics")
 def analytics(): return {"history":sensors_history(100)["items"],"model_status":"Awaiting validated training data; rule fallback active"}
 @app.get("/api/ai/model-info")
 def model_info():
     metadata=MODEL_PATH.with_suffix(".json")
-    if not MODEL_PATH.exists() or not metadata.exists(): return {"status":"Awaiting validated training data","model":None,"features":[],"metrics":{},"honest":True}
-    return {**json.loads(metadata.read_text()),"path_configured":str(MODEL_PATH),"honest":True}
+    if not MODEL_PATH.exists() or not metadata.exists(): return {"status":"RULE_BASED_FALLBACK","model":None,"features":[],"metrics":{},"honest":True,"reason":"No validated artifact is installed"}
+    try: info=json.loads(metadata.read_text())
+    except (OSError, json.JSONDecodeError): return {"status":"RULE_BASED_FALLBACK","model":None,"features":[],"metrics":{},"honest":True,"reason":"Model metadata is invalid"}
+    if info.get("status") != "trained" or not info.get("honest"):
+        return {**info,"status":"RULE_BASED_FALLBACK","path_configured":str(MODEL_PATH),"honest":True}
+    return {**info,"status":"TRAINED_VALID","path_configured":str(MODEL_PATH),"honest":True}
 @app.post("/api/ai/train")
 def train_model(csv_path: str):
     """Train from an operator-supplied, labelled export; guards live in train.py."""
@@ -342,5 +403,13 @@ def simulation(request:SimulationRequest):
     return {"mode":"SIMULATION / DEVELOPMENT MODE","predicted_water_level":round(level,1),"predicted_risk":p["condition"],"risk_score":p["risk_score"],"estimated_time_to_critical_minutes":None,"note":"Rule-based scenario estimate; not a trained predictive model"}
 @app.get("/api/export.csv")
 def export_csv():
-    rows=sensors_history(1000)["items"]; out=io.StringIO(); w=csv.DictWriter(out,fieldnames=["timestamp","flow1","flow2","flow_difference","flow_ratio","water_level","pump_status","full_level_count","source"]); w.writeheader(); w.writerows(rows)
+    rows=sensors_history(1000)["items"]
+    fields=["timestamp","flow1","flow2","flow_difference","flow_ratio","water_level","pump_status","full_level_count","source",
+            "V0","V1","V2","V3","V4","V5","V6","V7"]
+    export_rows=[]
+    for row in rows:
+        item={key: row.get(key) for key in fields if key not in {"V0","V1","V2","V3","V4","V5","V6","V7"}}
+        item.update(row.get("blynk_datastreams") or {})
+        export_rows.append(item)
+    out=io.StringIO(); w=csv.DictWriter(out,fieldnames=fields,extrasaction="ignore"); w.writeheader(); w.writerows(export_rows)
     return StreamingResponse(iter([out.getvalue()]),media_type="text/csv",headers={"Content-Disposition":"attachment; filename=drainguard-readings.csv"})
