@@ -12,11 +12,18 @@ class BlynkAdapter:
     def read(self, pin: str):
         if not self.configured:
             raise RuntimeError("Blynk is not configured; set BLYNK_TOKEN")
-        # Blynk Cloud's documented external API uses the virtual-pin query
-        # parameter (for example /external/api/get?token=...&v0).
-        response = httpx.get(f"{self.base_url}/external/api/get", params={"token": self.token, "v": pin.lower()}, timeout=10)
+        # Blynk Cloud's documented form is /external/api/get?token=...&v0.
+        response = httpx.get(
+            f"{self.base_url}/external/api/get",
+            params=[("token", self.token), (pin.lower(), "")],
+            timeout=10,
+        )
         response.raise_for_status()
-        value = response.json()
-        if isinstance(value, (dict, list)):
-            raise ValueError("Blynk returned a non-scalar datastream value")
+        value = response.text.strip()
+        if not value:
+            raise ValueError("Blynk returned an empty datastream value")
         return value
+
+    def read_datastreams(self, pins=("V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7")):
+        """Read the ESP32's documented virtual pins without exposing the token."""
+        return {pin: self.read(pin) for pin in pins}

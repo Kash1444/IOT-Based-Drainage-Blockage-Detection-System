@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from datetime import datetime, timezone, timedelta
 from app.main import app
+from app.blynk import BlynkAdapter
 client = TestClient(app)
 def test_health(): assert client.get("/api/health").status_code == 200
 def test_prediction_rule():
@@ -8,7 +9,10 @@ def test_prediction_rule():
     assert r.status_code == 200 and r.json()["condition"] in ("BLOCKAGE","DEVELOPING BLOCKAGE")
 def test_simulation_is_explicit():
     r = client.post("/api/simulation", json={"blockage_severity":.8,"initial_water_level":20,"inflow":50})
-    assert r.status_code == 200 and "DEVELOPMENT" in r.json()["mode"]
+    if r.status_code == 200:
+        assert "DEVELOPMENT" in r.json()["mode"]
+    else:
+        assert r.status_code == 403
 def test_ingest_exposes_derived_features():
     r = client.post("/api/ingest", json={"flow1":50,"flow2":25,"water_level":40,"timestamp":datetime.now(timezone.utc).isoformat()})
     assert r.status_code == 200
@@ -35,3 +39,21 @@ def test_experiment_lifecycle_and_quality_guard():
     assert client.post(f"/api/experiments/{eid}/stop").status_code == 200
     quality = client.get("/api/dataset/quality").json()
     assert quality["rows"] >= 1 and "PARTIAL_BLOCKAGE" in quality["labels"]
+
+def test_blynk_adapter_uses_documented_virtual_pin_query(monkeypatch):
+    monkeypatch.setenv("BLYNK_TOKEN", "redacted-test-token")
+    adapter = BlynkAdapter()
+    captured = {}
+
+    class Response:
+        text = "42"
+        def raise_for_status(self): pass
+
+    def fake_get(url, params, timeout):
+        captured.update(url=url, params=params, timeout=timeout)
+        return Response()
+
+    monkeypatch.setattr("app.blynk.httpx.get", fake_get)
+    assert adapter.read("V0") == "42"
+    assert ("v0", "") in captured["params"]
+    assert captured["timeout"] == 10

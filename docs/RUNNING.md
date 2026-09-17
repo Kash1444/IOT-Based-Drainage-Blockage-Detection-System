@@ -9,12 +9,13 @@ pip install -r backend\requirements.txt
 uvicorn app.main:app --app-dir backend --reload
 ```
 
-Copy `.env.example` to `.env`. `DRAINGUARD_MODE=demo` is the safe default. Set
-`DRAINGUARD_MODE=live` only when telemetry is connected; simulation ingestion is
-then rejected. The Blynk adapter requires `BLYNK_TOKEN` and is intentionally
+Copy `.env.example` to `.env`. `DRAINGUARD_MODE=auto` enables live mode when a
+Blynk token is present; use `DRAINGUARD_MODE=demo` to force development mode or
+`DRAINGUARD_MODE=live` to require live polling. Simulation ingestion is rejected
+in live mode. The Blynk adapter requires `BLYNK_TOKEN` and is intentionally
 opt-in. Set `DRAINGUARD_POLL_SECONDS` to a positive interval (for example `10`)
-to enable the FastAPI background poller in live mode. It reads the documented
-V0, V1, V2, V5, and V6 datastreams and records each successful sample in
+to enable the FastAPI background poller. It reads the documented
+V0 through V7 datastreams and records each successful sample in
 SQLite. Poll failures are exposed through `/api/status` and do not crash the
 application.
 

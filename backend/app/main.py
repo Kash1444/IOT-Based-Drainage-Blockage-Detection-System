@@ -14,12 +14,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from .blynk import BlynkAdapter
+from dotenv import load_dotenv
+
+load_dotenv()
 
 DB_PATH = Path(os.getenv("DRAINGUARD_DB", Path(__file__).resolve().parents[1] / "drainguard.db"))
-DEMO_MODE = os.getenv("DRAINGUARD_MODE", "demo").lower() == "demo"
+CONFIGURED_MODE = os.getenv("DRAINGUARD_MODE", "auto").lower()
+DEMO_MODE = CONFIGURED_MODE == "demo"
 STALE_AFTER_SECONDS = int(os.getenv("DRAINGUARD_STALE_SECONDS", "120"))
 MODEL_PATH = Path(os.getenv("DRAINGUARD_MODEL_PATH", Path(__file__).resolve().parents[1] / "models" / "model.joblib"))
-POLL_SECONDS = max(0, int(os.getenv("DRAINGUARD_POLL_SECONDS", "0")))
+DEFAULT_POLL_SECONDS = "10" if os.getenv("BLYNK_TOKEN", "").strip() and CONFIGURED_MODE != "demo" else "0"
+POLL_SECONDS = max(0, int(os.getenv("DRAINGUARD_POLL_SECONDS", DEFAULT_POLL_SECONDS)))
 _latest = None
 _poll_task = None
 _poll_state = {"connected": False, "last_attempt": None, "last_success": None, "error": None}
@@ -32,7 +37,7 @@ def db():
       id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL, flow1 REAL, flow2 REAL,
       water_level REAL, pump_status TEXT, full_level_count INTEGER DEFAULT 0,
       source TEXT NOT NULL, flow_difference REAL, flow_ratio REAL,
-      health_json TEXT, experiment_id INTEGER)""")
+      health_json TEXT, experiment_id INTEGER, blynk_json TEXT)""")
     con.execute("""CREATE TABLE IF NOT EXISTS experiments (
       id INTEGER PRIMARY KEY, label TEXT NOT NULL, notes TEXT DEFAULT '',
       started_at TEXT NOT NULL, stopped_at TEXT, status TEXT NOT NULL DEFAULT 'running')""")
@@ -41,7 +46,7 @@ def db():
       timestamp TEXT NOT NULL, label TEXT NOT NULL, flow1 REAL, flow2 REAL,
       water_level REAL, features_json TEXT, FOREIGN KEY(experiment_id) REFERENCES experiments(id))""")
     # Migrate databases from the first release.
-    for column, definition in (("health_json", "TEXT"), ("experiment_id", "INTEGER")):
+    for column, definition in (("health_json", "TEXT"), ("experiment_id", "INTEGER"), ("blynk_json", "TEXT")):
         try: con.execute(f"ALTER TABLE readings ADD COLUMN {column} {definition}")
         except sqlite3.OperationalError: pass
     con.commit()
@@ -149,6 +154,10 @@ class Reading(BaseModel):
     flow1: Optional[float] = Field(None, ge=0, le=10000); flow2: Optional[float] = Field(None, ge=0, le=10000)
     water_level: Optional[float] = Field(None, ge=0, le=100); pump_status: str = "ON"
     full_level_count: int = Field(default=0, ge=0); timestamp: Optional[datetime] = None; source: str = "api"
+    blockage_status: Optional[str] = None; water_level_status: Optional[str] = None
+    blue_led: Optional[int] = Field(None, ge=0, le=1); green_led: Optional[int] = Field(None, ge=0, le=1)
+    yellow_led: Optional[int] = Field(None, ge=0, le=1); red_led: Optional[int] = Field(None, ge=0, le=1)
+    blynk_datastreams: Optional[dict[str, str]] = None
 class PredictionRequest(BaseModel):
     flow1: float = Field(ge=0); flow2: float = Field(ge=0); water_level: float = Field(ge=0, le=100)
 class SimulationRequest(BaseModel):
@@ -173,8 +182,8 @@ def _ingest(reading, experiment_id=None, sample_label=None):
         if experiment_id is None:
             active=con.execute("SELECT id,label FROM experiments WHERE status='running' ORDER BY id DESC LIMIT 1").fetchone()
             if active: experiment_id, sample_label=active["id"], active["label"]
-        cur=con.execute("INSERT INTO readings(timestamp,flow1,flow2,water_level,pump_status,full_level_count,source,flow_difference,flow_ratio,experiment_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
-          (data["timestamp"],data["flow1"],data["flow2"],data["water_level"],data["pump_status"],data["full_level_count"],data["source"],data["flow_difference"],data["flow_ratio"],experiment_id))
+        cur=con.execute("INSERT INTO readings(timestamp,flow1,flow2,water_level,pump_status,full_level_count,source,flow_difference,flow_ratio,experiment_id,blynk_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+          (data["timestamp"],data["flow1"],data["flow2"],data["water_level"],data["pump_status"],data["full_level_count"],data["source"],data["flow_difference"],data["flow_ratio"],experiment_id,json.dumps(data.get("blynk_datastreams")) if data.get("blynk_datastreams") else None))
         data["id"]=cur.lastrowid
         if experiment_id:
             con.execute("INSERT INTO experiment_samples(experiment_id,reading_id,timestamp,label,flow1,flow2,water_level,features_json) SELECT id,?,?,?,?,?,?,? FROM experiments WHERE id=? AND status='running'",
@@ -194,15 +203,23 @@ async def _poll_loop():
     while True:
         _poll_state["last_attempt"] = datetime.now(timezone.utc).isoformat()
         try:
-            a=BlynkAdapter(); vals={p:float(a.read(p)) for p in ("V0","V1","V2")}
-            _ingest(Reading(flow1=vals["V0"],flow2=vals["V1"],water_level=vals["V2"],pump_status=str(a.read("V5")),full_level_count=int(float(a.read("V6"))),source="blynk"))
+            a=BlynkAdapter(); raw=a.read_datastreams()
+            _ingest(Reading(flow1=float(raw["V0"]),flow2=float(raw["V1"]),water_level=float(raw["V2"]),
+                            pump_status=str(raw["V5"]),full_level_count=int(float(raw["V6"])),
+                            blockage_status=str(raw["V4"]),water_level_status=str(raw["V7"]),
+                            blue_led=int(float(raw["V8"])) if "V8" in raw else None,
+                            green_led=int(float(raw["V9"])) if "V9" in raw else None,
+                            yellow_led=int(float(raw["V10"])) if "V10" in raw else None,
+                            red_led=int(float(raw["V11"])) if "V11" in raw else None,
+                            blynk_datastreams={key: str(value) for key, value in raw.items()},
+                            source="blynk"))
             _poll_state.update(connected=True, last_success=datetime.now(timezone.utc).isoformat(), error=None)
         except Exception as exc:
             _poll_state.update(connected=False, error=str(exc))
         await asyncio.sleep(POLL_SECONDS)
 
 @app.get("/api/health")
-def health(): return {"status":"ok","mode":"demo" if DEMO_MODE else "live","database":str(DB_PATH),"polling_seconds":POLL_SECONDS,"blynk":_poll_state}
+def health(): return {"status":"ok","mode":("demo" if DEMO_MODE else "live"),"database":str(DB_PATH),"polling_seconds":POLL_SECONDS,"blynk":_poll_state}
 @app.get("/api/sensors/latest")
 def sensors_latest():
     item=latest(); item["freshness"]=freshness(item.get("timestamp")); item["sensor_health"]=sensor_health()["sensors"]
@@ -222,13 +239,16 @@ def ingest_blynk():
     if not a.configured: raise HTTPException(503,"Blynk adapter is not configured")
     try:
         # Blynk Cloud documented endpoint: /external/api/get?token=...&v=V0
-        vals={p:float(a.read(p)) for p in ("V0","V1","V2")}
-        return {"accepted":True,"reading":_ingest(Reading(flow1=vals["V0"],flow2=vals["V1"],water_level=vals["V2"],pump_status=str(a.read("V5")),full_level_count=int(float(a.read("V6"))),source="blynk"))}
+        raw=a.read_datastreams()
+        return {"accepted":True,"reading":_ingest(Reading(flow1=float(raw["V0"]),flow2=float(raw["V1"]),water_level=float(raw["V2"]),
+            pump_status=str(raw["V5"]),full_level_count=int(float(raw["V6"])),blockage_status=str(raw["V4"]),
+            water_level_status=str(raw["V7"]),blynk_datastreams={key: str(value) for key, value in raw.items()},source="blynk"))}
     except Exception as exc: raise HTTPException(502,f"Blynk read failed: {exc}") from exc
 @app.get("/api/status")
 def status():
     x=latest(); f=freshness(x.get("timestamp"))
-    return {"mode":"demo" if DEMO_MODE else "live","data_fresh":f["fresh"],"freshness":f,
+    current_mode = "live" if f["fresh"] and x.get("source") == "blynk" else "demo" if DEMO_MODE else "offline"
+    return {"mode":current_mode,"data_fresh":f["fresh"],"freshness":f,
             "source":x.get("source"),"pump_status":x.get("pump_status"),"database":"ok",
             "model_status":"trained" if MODEL_PATH.exists() else "RULE_BASED_FALLBACK",
             "connection_message":None if f["fresh"] else "IoT connection unavailable. Live sensor data cannot currently be retrieved.",
